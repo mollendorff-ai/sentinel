@@ -1,12 +1,27 @@
 current:
   version: "0.5.0"
-  status: pending
-  summary: "Showcase -- C4 diagram + demo recording + org profile"
+  status: in-progress
+  summary: "Showcase -- C4 diagram + dynamic badges + README rewrite"
   deliverables:
-    - "[ ] C4 Level 2 container diagram (LangGraph supervisor -> agents -> Forge MCP / Ref MCP / Claude)"
-    - "[ ] asciinema recording of end-to-end run in Sentinel README"
+    - "[x] C4 Level 2 container diagram (Mermaid C4Container in README)"
+    - "[x] Dynamic CI badges: coverage + test count via gist (schneegans/dynamic-badges-action)"
+    - "[x] README rewritten: C4 diagram, ecosystem section, roadmap table, Forge/Ref as our MCP servers"
+    - "[ ] asciinema or GIF recording of end-to-end run"
     - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
-    - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
+
+next:
+  - version: "0.6.0"
+    summary: "RAG -- historical earnings for trend analysis"
+    deliverables:
+      - "[ ] Qdrant vector store with historical earnings data"
+      - "[ ] Research agent queries past quarters for trend comparison"
+      - "[ ] Synthesizer uses historical context for richer analysis"
+
+  - version: "0.7.0"
+    summary: "Human-in-the-loop + streaming"
+    deliverables:
+      - "[ ] LangGraph interrupt_before: analyst approval gate before Synthesizer"
+      - "[ ] Real-time agent progress to terminal (LangGraph streaming API)"
 
 released:
   - version: "0.4.0"
@@ -89,10 +104,7 @@ released:
       - "[x] Smoke tests: ref fetch structured JSON + error handling"
 
 backlog:
-  - "Human-in-the-loop: analyst approval gate before Synthesizer"
-  - "Streaming: real-time agent progress to terminal (LangGraph streaming API)"
-  - "RAG: historical earnings for trend comparison (Qdrant or ChromaDB)"
+  - "Sentinel as MCP server: meta-architecture (MCP tools calling MCP tools)"
+  - "Docker containerization for reproducible demos"
   - "Comparative analysis: multiple companies in same sector"
   - "PDF report generation (WeasyPrint or similar)"
-  - "Expose Sentinel itself as MCP server (meta: MCP tools calling MCP tools)"
-  - "Docker containerization for reproducible demos"
