@@ -45,7 +45,11 @@ released:
       - "[x] Synthesizer agent: reads Forge calculation results -> produces executive brief with valuation"
       - "[x] LangGraph graph: Research -> Modeler -> Synthesizer (linear flow)"
       - "[x] CLI entry point: python -m sentinel AAPL"
-      - "[x] 38 unit tests at 100% coverage"
+      - "[x] GitHub Actions CI: lint + test matrix (3.11/3.12) + markdownlint"
+      - "[x] Integration test markers: 7 smoke tests separated, 4 mocked equivalents for CI coverage"
+      - "[x] ADR-003: Custom StateGraph over deprecated create_react_agent"
+      - "[x] README: badges (CI, coverage, Python, license) + status section"
+      - "[x] 42 unit tests at 100% coverage"
 
   - version: "0.1.0"
     date: "2026-02-22"

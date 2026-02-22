@@ -14,7 +14,10 @@ Core 3-agent LangGraph pipeline: one ticker in, one executive brief out.
 - **Modeler agent** (`sentinel.agents.modeler`): generates Forge v5.0.0 YAML models from extracted data; self-correction loop (validate -> fix -> retry up to 3 times); calculates via `forge_calculate`
 - **Synthesizer agent** (`sentinel.agents.synthesizer`): produces 300-500 word executive briefs from Forge calculation results; every number traces to deterministic Forge output
 - **CLI entry point:** `python -m sentinel AAPL` runs the full pipeline and prints the brief
-- **Unit tests:** 38 tests at 100% coverage; all agents tested with mocked Claude and Forge; pipeline integration test verifies node execution order
+- **GitHub Actions CI:** lint (ruff format + check ALL), test matrix (Python 3.11/3.12), markdownlint; integration tests marked and skipped in CI
+- **ADR-003:** Custom StateGraph over deprecated `create_react_agent` (accepted)
+- **README:** badges (CI, coverage, Python, license) and status section
+- **Unit tests:** 42 tests at 100% coverage; integration tests marked separately for CI
 
 ## [0.1.0] - 2026-02-22
 
