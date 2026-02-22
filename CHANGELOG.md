@@ -3,6 +3,23 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] - 2026-02-22
+
+Ref MCP migration: subprocess CLI wrapper replaced with native MCP client.
+
+### Added
+
+- **ADR-005:** Ref MCP over CLI subprocess for web data ingestion (accepted)
+
+### Changed
+
+- **Ref MCP client** (`sentinel.tools.ref_mcp`): connects to `ref mcp` via langchain-mcp-adapters (stdio transport); auto-discovers all 6 tools (fetch, pdf, check_links, scan, verify_refs, refresh_data)
+- **Research agent** batches URLs via MCP connection instead of sequential subprocess calls
+
+### Removed
+
+- **Ref CLI wrapper** (`sentinel.tools.ref_fetch`): replaced by Ref MCP client
+
 ## [0.2.0] - 2026-02-22
 
 Core 3-agent LangGraph pipeline: one ticker in, one executive brief out.

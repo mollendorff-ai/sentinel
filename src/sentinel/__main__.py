@@ -29,7 +29,7 @@ def main() -> None:
     provider = os.environ.get("SENTINEL_LLM_PROVIDER", "anthropic").lower()
     _, default_model = PROVIDER_DEFAULTS.get(provider, ("", "unknown"))
     model = os.environ.get("SENTINEL_LLM_MODEL", default_model)
-    sys.stdout.write(f"Sentinel v0.2.0 — Analyzing {ticker} (LLM: {model})\n\n")
+    sys.stdout.write(f"Sentinel v0.2.1 — Analyzing {ticker} (LLM: {model})\n\n")
 
     graph = compile_graph()
     result = asyncio.run(graph.ainvoke({"ticker": ticker}))

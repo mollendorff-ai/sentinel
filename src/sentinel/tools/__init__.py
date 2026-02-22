@@ -1,1 +1,1 @@
-"""Sentinel tools — Forge MCP and Ref subprocess wrappers."""
+"""Sentinel tools — Forge MCP and Ref MCP clients."""

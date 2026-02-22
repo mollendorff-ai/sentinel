@@ -19,6 +19,6 @@ conventions:
   - "LangGraph for agent orchestration, LangChain for components only"
   - "Forge via MCP (langchain-mcp-adapters, stdio transport) for financial calculations — no in-agent math"
   - "Forge CLI subprocess only for tools not in MCP (simulate, tornado) — v0.3.0+"
-  - "ref fetch via subprocess wrapper for all web retrieval (never WebSearch/WebFetch)"
+  - "Ref via MCP (langchain-mcp-adapters, stdio transport) for all web retrieval (never WebSearch/WebFetch)"
   - "LangSmith tracing enabled from day one"
   - "Sibling repos for reference: ../forge/ (YAML schema, MCP tool defs, examples), ../ref/ (CLI usage)"

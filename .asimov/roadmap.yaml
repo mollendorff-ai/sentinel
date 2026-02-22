@@ -28,12 +28,21 @@ next:
   - version: "0.5.0"
     summary: "Showcase -- C4 diagram + demo recording + org profile"
     deliverables:
-      - "[ ] C4 Level 2 container diagram (LangGraph supervisor -> agents -> Forge MCP / Ref CLI / Claude)"
+      - "[ ] C4 Level 2 container diagram (LangGraph supervisor -> agents -> Forge MCP / Ref MCP / Claude)"
       - "[ ] asciinema recording of end-to-end run in Sentinel README"
       - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
       - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
 
 released:
+  - version: "0.2.1"
+    date: "2026-02-22"
+    summary: "Ref MCP migration -- subprocess wrapper replaced with native MCP client"
+    deliverables:
+      - "[x] Ref MCP client via langchain-mcp-adapters (stdio transport: ref mcp)"
+      - "[x] Research agent batch fetching via MCP connection"
+      - "[x] ADR-005: Ref MCP over CLI subprocess for web data ingestion"
+      - "[x] Removed sentinel.tools.ref_fetch CLI subprocess wrapper"
+
   - version: "0.2.0"
     date: "2026-02-22"
     summary: "Core 3-agent flow -- one ticker in, one brief out"

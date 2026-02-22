@@ -25,4 +25,4 @@ Python.
 
 - All Sentinel code is Python (3.11+)
 - Dependencies: langgraph, langchain, langsmith
-- forge and ref remain Rust CLIs, called via subprocess
+- forge and ref remain Rust binaries, connected via MCP (stdio transport)

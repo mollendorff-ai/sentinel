@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from sentinel.llm import get_llm
-from sentinel.tools.ref_fetch import RefFetchTool
+from sentinel.tools.ref_mcp import get_ref_tools
 
 if TYPE_CHECKING:
     from sentinel.graph.state import SentinelState
@@ -74,6 +74,11 @@ def _build_urls(ticker: str) -> list[str]:
     return [url.format(ticker_lower=ticker.lower(), slug=slug) for url in _EARNINGS_URLS]
 
 
+def _text_from(result: list[dict[str, Any]]) -> str:
+    """Extract text from MCP tool result content blocks."""
+    return " ".join(block["text"] for block in result if block.get("type") == "text")
+
+
 async def research_node(state: SentinelState) -> dict[str, Any]:
     """Fetch earnings data for *ticker* and extract structured financials.
 
@@ -86,19 +91,31 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
     ticker = state["ticker"]
     logger.info("Research agent: fetching earnings for %s", ticker)
 
-    ref = RefFetchTool()
+    tools = await get_ref_tools()
+    ref_fetch = next(t for t in tools if t.name == "ref_fetch")
     urls = _build_urls(ticker)
 
-    # Fetch pages and combine content
+    # Batch all URLs in one MCP call
+    mcp_result = await ref_fetch.ainvoke({"urls": urls, "timeout": 30000})
+    raw_text = _text_from(mcp_result)
+
+    # Parse the JSON response — single dict for 1 URL, array for multiple
+    try:
+        parsed = json.loads(raw_text)
+    except (json.JSONDecodeError, TypeError):
+        logger.exception("Research agent: failed to parse ref_fetch response for %s", ticker)
+        return {"raw_data": {"error": f"No earnings data found for {ticker}", "ticker": ticker}}
+
+    pages: list[dict[str, Any]] = parsed if isinstance(parsed, list) else [parsed]
+
+    # Extract content from fetched pages
     combined_content: list[str] = []
     source_url = ""
 
-    for url in urls:
-        result = await ref._arun(url)  # noqa: SLF001
-        if result.get("status") == "ok":
-            source_url = source_url or url
-            sections = result.get("sections", [])
-            for section in sections:
+    for page in pages:
+        if page.get("status") == "ok":
+            source_url = source_url or page.get("url", "")
+            for section in page.get("sections", []):
                 heading = section.get("heading", "")
                 body = section.get("text", "")
                 if heading:
@@ -107,14 +124,14 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
                     combined_content.append(body)
             logger.info(
                 "Research agent: fetched %s (%d sections)",
-                url,
-                len(sections),
+                page.get("url", "unknown"),
+                len(page.get("sections", [])),
             )
         else:
             logger.warning(
                 "Research agent: failed to fetch %s: %s",
-                url,
-                result.get("error", "unknown"),
+                page.get("url", "unknown"),
+                page.get("error", "unknown"),
             )
 
     if not combined_content:
@@ -129,20 +146,22 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
     )
 
     response = await llm.ainvoke(prompt)
-    raw_text = response.content if isinstance(response.content, str) else str(response.content)
+    response_text = (
+        response.content if isinstance(response.content, str) else str(response.content)
+    )
 
     try:
-        raw_data: dict[str, Any] = json.loads(raw_text)
+        raw_data: dict[str, Any] = json.loads(response_text)
     except json.JSONDecodeError:
         logger.warning("Research agent: Claude returned non-JSON, attempting extraction")
-        start = raw_text.find("{")
-        end = raw_text.rfind("}") + 1
+        start = response_text.find("{")
+        end = response_text.rfind("}") + 1
         if start >= 0 and end > start:
-            raw_data = json.loads(raw_text[start:end])
+            raw_data = json.loads(response_text[start:end])
         else:
             raw_data = {
                 "error": "Failed to parse extraction response",
-                "raw_response": raw_text[:500],
+                "raw_response": response_text[:500],
             }
 
     raw_data["source_url"] = raw_data.get("source_url", source_url)
