@@ -36,9 +36,11 @@ graph TD
 
 LLMs hallucinate numbers. Sentinel enforces a clean boundary:
 
-- **AI does:** reasoning, extraction, synthesis, scenario narrative
+- **Any LLM does:** reasoning, extraction, synthesis, scenario narrative
 - **Forge does:** DCF, NPV, IRR, Monte Carlo, sensitivity analysis, scenario math
 - **Ref does:** live web data ingestion (headless Chrome, SPA support, bot protection bypass)
+
+Swap the LLM provider with one env var (`SENTINEL_LLM_PROVIDER`). The orchestration layer doesn't care which model reasons -- only that Forge calculates.
 
 The agent writes YAML. Forge validates the formulas. If the model is wrong, Forge returns errors and the agent self-corrects. No spreadsheet. No guessing.
 
@@ -50,7 +52,7 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | Tracing | LangSmith |
 | Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (10 tools, 173 Excel functions, 7 analytical engines) |
 | Data ingestion | [Ref](https://github.com/mollendorff-ai/ref) (Rust CLI, headless Chrome, structured JSON) |
-| LLM | Claude / GPT (model-agnostic) |
+| LLM | Any LangChain-compatible model — [swap with one env var](docs/adr/004-multi-provider-llm-support.md) |
 
 ## Getting Started
 
@@ -82,7 +84,7 @@ pytest
 
 ## Status
 
-**v0.2.0** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). Multi-provider LLM support (Anthropic, OpenAI, Google, Groq). 50 tests, 100% coverage.
+**v0.2.0** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). LLM-agnostic -- any LangChain-compatible provider via env var. 50 tests, 100% coverage.
 
 Next: **v0.3.0** -- Risk Analyst + Scenario Planner agents, full 5-agent pipeline with conditional routing.
 
