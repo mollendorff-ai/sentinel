@@ -152,7 +152,13 @@ async def scenario_planner_node(state: SentinelState) -> dict[str, Any]:
         model_yaml=base_yaml,
         earnings_json=json.dumps(raw_data, indent=2),
     )
-    response = await llm.ainvoke(prompt)
+    try:
+        response = await llm.ainvoke(prompt)
+    except Exception:
+        logger.exception("Scenario Planner: LLM generation failed for %s", ticker)
+        return {
+            "scenario_analysis": {"error": f"LLM generation failed for {ticker}"},
+        }
     augmented_yaml = (
         response.content if isinstance(response.content, str) else str(response.content)
     )
@@ -162,8 +168,15 @@ async def scenario_planner_node(state: SentinelState) -> dict[str, Any]:
     for attempt in range(1, MAX_RETRIES + 1):
         model_path = _write_temp_yaml(augmented_yaml, f"{ticker}-scenario")
         try:
-            val_result = await forge_validate.ainvoke({"file_path": str(model_path)})
-            val_text = _text_from(val_result)
+            try:
+                val_result = await forge_validate.ainvoke({"file_path": str(model_path)})
+                val_text = _text_from(val_result)
+            except Exception:
+                logger.exception(
+                    "Scenario Planner: forge_validate failed (attempt %d)",
+                    attempt,
+                )
+                continue
 
             val_data = json.loads(val_text)
             if val_data.get("tables_valid") and val_data.get("scalars_valid"):
@@ -184,7 +197,14 @@ async def scenario_planner_node(state: SentinelState) -> dict[str, Any]:
                     errors=val_text,
                     model_yaml=augmented_yaml,
                 )
-                response = await llm.ainvoke(correction)
+                try:
+                    response = await llm.ainvoke(correction)
+                except Exception:
+                    logger.exception(
+                        "Scenario Planner: LLM correction failed (attempt %d)",
+                        attempt,
+                    )
+                    continue
                 augmented_yaml = (
                     response.content
                     if isinstance(response.content, str)
@@ -224,25 +244,37 @@ async def _run_scenario_tools(
     """Run forge_scenarios, forge_compare, and forge_break_even on augmented YAML."""
     model_path = _write_temp_yaml(augmented_yaml, f"{ticker}-scenario")
     try:
-        scenarios_result = await forge_scenarios.ainvoke({"file_path": str(model_path)})
-        scenarios_data = json.loads(_text_from(scenarios_result))
+        try:
+            scenarios_result = await forge_scenarios.ainvoke({"file_path": str(model_path)})
+            scenarios_data: dict[str, Any] = json.loads(_text_from(scenarios_result))
+        except Exception:
+            logger.exception("Scenario Planner: forge_scenarios failed for %s", ticker)
+            scenarios_data = {"error": "forge_scenarios failed"}
 
-        compare_result = await forge_compare.ainvoke(
-            {
-                "file_path": str(model_path),
-                "scenarios": ["Bull", "Base", "Bear"],
-            },
-        )
-        compare_data = json.loads(_text_from(compare_result))
+        try:
+            compare_result = await forge_compare.ainvoke(
+                {
+                    "file_path": str(model_path),
+                    "scenarios": ["Bull", "Base", "Bear"],
+                },
+            )
+            compare_data: dict[str, Any] = json.loads(_text_from(compare_result))
+        except Exception:
+            logger.exception("Scenario Planner: forge_compare failed for %s", ticker)
+            compare_data = {"error": "forge_compare failed"}
 
-        break_even_result = await forge_break_even.ainvoke(
-            {
-                "file_path": str(model_path),
-                "output": "outputs.operating_income",
-                "vary": "inputs.revenue",
-            },
-        )
-        break_even_data = json.loads(_text_from(break_even_result))
+        try:
+            break_even_result = await forge_break_even.ainvoke(
+                {
+                    "file_path": str(model_path),
+                    "output": "outputs.operating_income",
+                    "vary": "inputs.revenue",
+                },
+            )
+            break_even_data: dict[str, Any] = json.loads(_text_from(break_even_result))
+        except Exception:
+            logger.exception("Scenario Planner: forge_break_even failed for %s", ticker)
+            break_even_data = {"error": "forge_break_even failed"}
 
         logger.info("Scenario Planner: analysis complete for %s", ticker)
     finally:

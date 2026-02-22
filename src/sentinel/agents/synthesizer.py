@@ -142,7 +142,11 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         word_range=word_range,
     )
 
-    response = await llm.ainvoke(prompt)
+    try:
+        response = await llm.ainvoke(prompt)
+    except Exception:
+        logger.exception("Synthesizer agent: LLM call failed for %s", ticker)
+        return {"brief": f"Analysis incomplete for {ticker}: LLM call failed"}
     brief = response.content if isinstance(response.content, str) else str(response.content)
 
     logger.info(

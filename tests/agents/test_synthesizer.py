@@ -264,3 +264,21 @@ async def test_synthesizer_uses_long_word_range_with_risk() -> None:
 
     prompt = mock_llm.ainvoke.call_args[0][0]
     assert "400-700" in prompt
+
+
+async def test_synthesizer_node_handles_llm_exception() -> None:
+    """Verify synthesizer returns fallback brief when LLM call raises."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"period": "Q1 2026"},
+        "forge_results": {"outputs.margin": 0.5},
+    }
+
+    with patch(
+        "sentinel.agents.synthesizer.get_llm",
+        return_value=AsyncMock(ainvoke=AsyncMock(side_effect=RuntimeError("boom"))),
+    ):
+        result = await synthesizer_node(state)
+
+    assert "Analysis incomplete for AAPL" in result["brief"]
+    assert "LLM call failed" in result["brief"]

@@ -371,6 +371,206 @@ async def test_risk_analyst_node_exhausts_retries() -> None:
     assert "failed after" in result["risk_analysis"]["error"].lower()
 
 
+async def test_risk_analyst_node_handles_validate_exception_in_loop() -> None:
+    """Verify risk analyst exhausts retries when validate raises in loop."""
+    state = _base_state()
+    augmented_yaml = '_forge_version: "5.0.0"\ninputs:\n  revenue:\n    value: 94800'
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = augmented_yaml
+
+    mock_validate = MagicMock()
+    mock_validate.name = "forge_validate"
+    mock_validate.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_simulate = _make_simulate()
+    mock_tornado = _make_tornado()
+    mock_break_even = _make_break_even()
+
+    with (
+        patch(
+            "sentinel.agents.risk_analyst.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.risk_analyst.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_simulate, mock_tornado, mock_break_even],
+        ),
+    ):
+        result = await risk_analyst_node(state)
+
+    assert "error" in result["risk_analysis"]
+    assert "failed after" in result["risk_analysis"]["error"].lower()
+
+
+async def test_risk_analyst_node_handles_llm_correction_exception_in_loop() -> None:
+    """Verify risk analyst exhausts retries when LLM correction raises in loop."""
+    state = _base_state()
+    augmented_yaml = '_forge_version: "5.0.0"\ninputs:\n  revenue:\n    value: 94800'
+
+    mock_initial_response = AsyncMock()
+    mock_initial_response.content = augmented_yaml
+
+    # First LLM call succeeds (generation), subsequent correction calls throw
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(
+        side_effect=[mock_initial_response, RuntimeError("correction boom")],
+    )
+
+    mock_validate = _make_validate_fail()
+    mock_simulate = _make_simulate()
+    mock_tornado = _make_tornado()
+    mock_break_even = _make_break_even()
+
+    with (
+        patch("sentinel.agents.risk_analyst.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.risk_analyst.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_simulate, mock_tornado, mock_break_even],
+        ),
+    ):
+        result = await risk_analyst_node(state)
+
+    assert "error" in result["risk_analysis"]
+
+
+async def test_risk_analyst_node_handles_llm_exception() -> None:
+    """Verify risk analyst returns error when initial LLM call raises."""
+    state = _base_state()
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_validate = _make_validate_pass()
+    mock_simulate = _make_simulate()
+    mock_tornado = _make_tornado()
+    mock_break_even = _make_break_even()
+
+    with (
+        patch("sentinel.agents.risk_analyst.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.risk_analyst.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_simulate, mock_tornado, mock_break_even],
+        ),
+    ):
+        result = await risk_analyst_node(state)
+
+    assert "error" in result["risk_analysis"]
+    assert "LLM augmentation failed" in result["risk_analysis"]["error"]
+
+
+async def test_risk_analyst_node_handles_simulate_exception() -> None:
+    """Verify partial results when forge_simulate raises but others succeed."""
+    state = _base_state()
+    augmented_yaml = '_forge_version: "5.0.0"\ninputs:\n  revenue:\n    value: 94800'
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = augmented_yaml
+
+    mock_validate = _make_validate_pass()
+
+    mock_simulate = MagicMock()
+    mock_simulate.name = "forge_simulate"
+    mock_simulate.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_tornado = _make_tornado()
+    mock_break_even = _make_break_even()
+
+    with (
+        patch(
+            "sentinel.agents.risk_analyst.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.risk_analyst.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_simulate, mock_tornado, mock_break_even],
+        ),
+    ):
+        result = await risk_analyst_node(state)
+
+    ra = result["risk_analysis"]
+    assert "error" in ra["monte_carlo"]
+    assert "tornado" in ra
+    assert "error" not in ra["tornado"]
+    assert "break_even" in ra
+    assert "error" not in ra["break_even"]
+
+
+async def test_risk_analyst_node_handles_tornado_exception() -> None:
+    """Verify partial results when forge_tornado raises but others succeed."""
+    state = _base_state()
+    augmented_yaml = '_forge_version: "5.0.0"\ninputs:\n  revenue:\n    value: 94800'
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = augmented_yaml
+
+    mock_validate = _make_validate_pass()
+    mock_simulate = _make_simulate()
+
+    mock_tornado = MagicMock()
+    mock_tornado.name = "forge_tornado"
+    mock_tornado.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_break_even = _make_break_even()
+
+    with (
+        patch(
+            "sentinel.agents.risk_analyst.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.risk_analyst.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_simulate, mock_tornado, mock_break_even],
+        ),
+    ):
+        result = await risk_analyst_node(state)
+
+    ra = result["risk_analysis"]
+    assert "error" not in ra["monte_carlo"]
+    assert "error" in ra["tornado"]
+    assert "error" not in ra["break_even"]
+
+
+async def test_risk_analyst_node_handles_break_even_exception() -> None:
+    """Verify partial results when forge_break_even raises but others succeed."""
+    state = _base_state()
+    augmented_yaml = '_forge_version: "5.0.0"\ninputs:\n  revenue:\n    value: 94800'
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = augmented_yaml
+
+    mock_validate = _make_validate_pass()
+    mock_simulate = _make_simulate()
+    mock_tornado = _make_tornado()
+
+    mock_break_even = MagicMock()
+    mock_break_even.name = "forge_break_even"
+    mock_break_even.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch(
+            "sentinel.agents.risk_analyst.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.risk_analyst.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_simulate, mock_tornado, mock_break_even],
+        ),
+    ):
+        result = await risk_analyst_node(state)
+
+    ra = result["risk_analysis"]
+    assert "error" not in ra["monte_carlo"]
+    assert "error" not in ra["tornado"]
+    assert "error" in ra["break_even"]
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("ANTHROPIC_API_KEY"),

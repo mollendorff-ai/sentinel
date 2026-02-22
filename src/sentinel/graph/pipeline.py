@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langgraph.graph import END, START, StateGraph
+
+if TYPE_CHECKING:
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+    from langgraph.graph.state import CompiledStateGraph
 
 from sentinel.agents.modeler import modeler_node
 from sentinel.agents.research import research_node
@@ -57,8 +61,16 @@ def build_graph() -> StateGraph:
     return graph
 
 
-def compile_graph() -> StateGraph:
+def compile_graph(
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> CompiledStateGraph:
     """Build and compile the pipeline, ready to invoke.
+
+    Parameters
+    ----------
+    checkpointer
+        Optional persistence backend. Pass a ``SqliteSaver`` (or any
+        ``BaseCheckpointSaver``) to enable run resumption.
 
     Returns
     -------
@@ -66,4 +78,4 @@ def compile_graph() -> StateGraph:
         Executable graph supporting ``invoke`` / ``ainvoke``.
 
     """
-    return build_graph().compile()
+    return build_graph().compile(checkpointer=checkpointer)

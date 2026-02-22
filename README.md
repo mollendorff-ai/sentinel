@@ -49,7 +49,8 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | Layer | Technology |
 | ----- | ---------- |
 | Orchestration | LangGraph (Python) — [why Python?](docs/adr/001-python-over-typescript.md) |
-| Tracing | LangSmith |
+| Persistence | SQLite checkpointer ([why?](docs/adr/007-sqlite-checkpointer.md)) |
+| Tracing | LangSmith (per-ticker run names, tags, metadata) |
 | Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (20 tools, 173 Excel functions, 7 analytical engines) |
 | Data ingestion | [Ref](https://github.com/mollendorff-ai/ref) via MCP (6 tools, headless Chrome, structured JSON) |
 | LLM | Any LangChain-compatible model — [swap with one env var](docs/adr/004-multi-provider-llm-support.md) |
@@ -65,28 +66,28 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 ### Install
 
 ```bash
-# Clone and install in editable mode
 git clone https://github.com/mollendorff-ai/sentinel.git
 cd sentinel
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Configure environment
-cp .env.example .env
+make setup    # creates venv, installs deps, copies .env
 # Edit .env with your API keys
 ```
 
-### Run tests
+### Run
 
 ```bash
-pytest
+make demo                        # Full 5-agent analysis for AAPL
+make demo TICKER="AAPL MSFT"     # Multi-ticker batch mode
+make demo-quick                  # Quick 3-agent mode (skip risk + scenarios)
+make check                       # Lint + test (100% coverage required)
 ```
+
+Results are saved to `output/{TICKER}/{timestamp}/` with JSON, markdown, and YAML artifacts.
 
 ## Status
 
-**v0.3.0** -- Full 5-agent pipeline (Research -> Modeler -> Risk Analyst -> Scenario Planner -> Synthesizer). Monte Carlo, tornado sensitivity, bull/base/bear scenarios. `--quick` flag for fast 3-agent mode. Default LLM: Opus 4.6. 77 tests, 100% coverage.
+**v0.4.0** -- Persistence + observability + developer experience. SQLite checkpointer for resumable runs. LangSmith traces with per-ticker run names, tags, and metadata. Structured output directory (JSON + markdown + YAML per ticker). Multi-ticker batch mode. Graceful error handling across all agents. Makefile for zero-friction demos. 126 tests, 100% coverage.
 
-Next: **v0.4.0** -- Persistence + observability + polish.
+Next: **v0.5.0** -- Showcase (C4 diagram, demo recording, README rewrite).
 
 See [CHANGELOG](CHANGELOG.md) and [roadmap](.asimov/roadmap.yaml) for details.
 

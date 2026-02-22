@@ -38,7 +38,7 @@ check: lint test ## Run all quality gates (lint + test)
 # ── Demo ──────────────────────────────────────────────────────────
 
 .PHONY: demo
-demo: ## Run full 5-agent analysis (TICKER=AAPL by default)
+demo: ## Run full 5-agent analysis (TICKER="AAPL" or "AAPL MSFT")
 	$(PYTHON) -m sentinel $(TICKER)
 
 .PHONY: demo-quick

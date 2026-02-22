@@ -13,11 +13,18 @@ EXPECTED_REVENUE_PARTIAL = 50_000
 EXPECTED_URL_COUNT = 2
 
 
-def _mock_ref_tools(mcp_response: list[dict[str, Any]]) -> AsyncMock:
+def _mock_ref_tools(
+    mcp_response: list[dict[str, Any]] | None = None,
+    *,
+    side_effect: Exception | None = None,
+) -> AsyncMock:
     """Build a mock get_ref_tools that returns a ref_fetch tool with the given response."""
     ref_fetch_tool = MagicMock()
     ref_fetch_tool.name = "ref_fetch"
-    ref_fetch_tool.ainvoke = AsyncMock(return_value=mcp_response)
+    if side_effect is not None:
+        ref_fetch_tool.ainvoke = AsyncMock(side_effect=side_effect)
+    else:
+        ref_fetch_tool.ainvoke = AsyncMock(return_value=mcp_response)
     return AsyncMock(return_value=[ref_fetch_tool])
 
 
@@ -220,3 +227,43 @@ async def test_research_node_single_page_response() -> None:
         result = await research_node({"ticker": "AAPL"})
 
     assert result["raw_data"]["revenue"] == EXPECTED_REVENUE
+
+
+async def test_research_node_handles_ref_fetch_exception() -> None:
+    """Verify research_node returns error when ref_fetch raises an exception."""
+    with patch(
+        "sentinel.agents.research.get_ref_tools",
+        _mock_ref_tools(side_effect=RuntimeError("boom")),
+    ):
+        result = await research_node({"ticker": "AAPL"})
+
+    assert "error" in result["raw_data"]
+    assert "ref_fetch failed" in result["raw_data"]["error"]
+    assert result["raw_data"]["ticker"] == "AAPL"
+
+
+async def test_research_node_handles_llm_exception() -> None:
+    """Verify research_node returns error when LLM ainvoke raises an exception."""
+    pages = [
+        {
+            "status": "ok",
+            "url": "https://example.com",
+            "sections": [{"heading": "Data", "text": "Some data."}],
+        },
+    ]
+
+    with (
+        patch(
+            "sentinel.agents.research.get_ref_tools",
+            _mock_ref_tools(_mcp_content(pages)),
+        ),
+        patch(
+            "sentinel.agents.research.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(side_effect=RuntimeError("boom"))),
+        ),
+    ):
+        result = await research_node({"ticker": "AAPL"})
+
+    assert "error" in result["raw_data"]
+    assert "LLM extraction failed" in result["raw_data"]["error"]
+    assert result["raw_data"]["ticker"] == "AAPL"

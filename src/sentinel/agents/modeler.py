@@ -12,6 +12,9 @@ from sentinel.llm import get_llm
 from sentinel.tools.forge_mcp import get_forge_tools
 
 if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.tools import BaseTool
+
     from sentinel.graph.state import SentinelState
 
 logger = logging.getLogger(__name__)
@@ -95,6 +98,90 @@ def _text_from(result: list[dict[str, Any]]) -> str:
     return " ".join(block["text"] for block in result if block.get("type") == "text")
 
 
+async def _validate_loop(
+    model_yaml: str,
+    ticker: str,
+    *,
+    llm: BaseChatModel,
+    validate: BaseTool,
+) -> tuple[str, bool]:
+    """Run the self-correction loop: validate -> fix -> retry.
+
+    Returns the (possibly corrected) YAML and whether validation passed.
+    """
+    for attempt in range(1, MAX_RETRIES + 1):
+        model_path = _write_temp_yaml(model_yaml, ticker)
+        try:
+            try:
+                val_result = await validate.ainvoke({"file_path": str(model_path)})
+                val_text = _text_from(val_result)
+            except Exception:
+                logger.exception(
+                    "Modeler agent: forge_validate failed (attempt %d)",
+                    attempt,
+                )
+                continue
+
+            val_data = json.loads(val_text)
+            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
+                logger.info("Modeler agent: validation passed (attempt %d)", attempt)
+                return model_yaml, True
+
+            logger.warning(
+                "Modeler agent: validation failed (attempt %d): %s",
+                attempt,
+                val_text[:200],
+            )
+
+            if attempt < MAX_RETRIES:
+                correction = CORRECTION_PROMPT.format(
+                    errors=val_text,
+                    model_yaml=model_yaml,
+                )
+                try:
+                    response = await llm.ainvoke(correction)
+                except Exception:
+                    logger.exception(
+                        "Modeler agent: LLM correction failed (attempt %d)",
+                        attempt,
+                    )
+                    continue
+                model_yaml = (
+                    response.content
+                    if isinstance(response.content, str)
+                    else str(response.content)
+                )
+                model_yaml = _strip_fences(model_yaml)
+        finally:
+            _cleanup(model_path)
+
+    logger.error("Modeler agent: validation failed after %d attempts", MAX_RETRIES)
+    return model_yaml, False
+
+
+async def _run_calculate(
+    model_yaml: str,
+    ticker: str,
+    *,
+    calculate: BaseTool,
+) -> dict[str, Any]:
+    """Run forge_calculate and return the results dict."""
+    model_path = _write_temp_yaml(model_yaml, ticker)
+    try:
+        try:
+            calc_result = await calculate.ainvoke({"file_path": str(model_path)})
+        except Exception:
+            logger.exception("Modeler agent: forge_calculate failed for %s", ticker)
+            return {"error": f"forge_calculate failed for {ticker}"}
+        calc_text = _text_from(calc_result)
+        logger.info("Modeler agent: calculation complete for %s", ticker)
+        forge_results = _parse_calc_results(calc_text)
+        forge_results["raw_output"] = calc_text
+    finally:
+        _cleanup(model_path)
+    return forge_results
+
+
 async def modeler_node(state: SentinelState) -> dict[str, Any]:
     """Generate, validate, and calculate a Forge model from earnings data.
 
@@ -115,10 +202,7 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
             "Modeler agent: skipping -- research returned error: %s",
             raw_data["error"],
         )
-        return {
-            "model_yaml": "",
-            "forge_results": {"error": raw_data["error"]},
-        }
+        return {"model_yaml": "", "forge_results": {"error": raw_data["error"]}}
 
     logger.info("Modeler agent: generating Forge model for %s", ticker)
 
@@ -129,72 +213,33 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
     calculate = next(t for t in tools if t.name == "forge_calculate")
 
     # Generate initial YAML
-    prompt = GENERATION_PROMPT.format(
-        earnings_json=json.dumps(raw_data, indent=2),
-    )
-    response = await llm.ainvoke(prompt)
+    prompt = GENERATION_PROMPT.format(earnings_json=json.dumps(raw_data, indent=2))
+    try:
+        response = await llm.ainvoke(prompt)
+    except Exception:
+        logger.exception("Modeler agent: LLM generation failed for %s", ticker)
+        return {
+            "model_yaml": "",
+            "forge_results": {"error": f"LLM generation failed for {ticker}"},
+        }
     model_yaml = response.content if isinstance(response.content, str) else str(response.content)
     model_yaml = _strip_fences(model_yaml)
 
-    # Self-correction loop: validate -> fix -> retry
-    for attempt in range(1, MAX_RETRIES + 1):
-        model_path = _write_temp_yaml(model_yaml, ticker)
-        try:
-            val_result = await validate.ainvoke({"file_path": str(model_path)})
-            val_text = _text_from(val_result)
-
-            val_data = json.loads(val_text)
-            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
-                logger.info(
-                    "Modeler agent: validation passed (attempt %d)",
-                    attempt,
-                )
-                break
-
-            logger.warning(
-                "Modeler agent: validation failed (attempt %d): %s",
-                attempt,
-                val_text[:200],
-            )
-
-            if attempt < MAX_RETRIES:
-                correction = CORRECTION_PROMPT.format(
-                    errors=val_text,
-                    model_yaml=model_yaml,
-                )
-                response = await llm.ainvoke(correction)
-                model_yaml = (
-                    response.content
-                    if isinstance(response.content, str)
-                    else str(response.content)
-                )
-                model_yaml = _strip_fences(model_yaml)
-        finally:
-            _cleanup(model_path)
-    else:
-        logger.error(
-            "Modeler agent: validation failed after %d attempts",
-            MAX_RETRIES,
-        )
+    # Validate with self-correction
+    model_yaml, passed = await _validate_loop(
+        model_yaml,
+        ticker,
+        llm=llm,
+        validate=validate,
+    )
+    if not passed:
         return {
             "model_yaml": model_yaml,
-            "forge_results": {
-                "error": f"Validation failed after {MAX_RETRIES} attempts",
-            },
+            "forge_results": {"error": f"Validation failed after {MAX_RETRIES} attempts"},
         }
 
     # Calculate
-    model_path = _write_temp_yaml(model_yaml, ticker)
-    try:
-        calc_result = await calculate.ainvoke({"file_path": str(model_path)})
-        calc_text = _text_from(calc_result)
-        logger.info("Modeler agent: calculation complete for %s", ticker)
-
-        forge_results = _parse_calc_results(calc_text)
-        forge_results["raw_output"] = calc_text
-    finally:
-        _cleanup(model_path)
-
+    forge_results = await _run_calculate(model_yaml, ticker, calculate=calculate)
     return {"model_yaml": model_yaml, "forge_results": forge_results}
 
 

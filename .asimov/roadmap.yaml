@@ -1,25 +1,28 @@
 current:
-  version: "0.4.0"
+  version: "0.5.0"
   status: pending
-  summary: "Persistence + observability + developer experience"
+  summary: "Showcase -- C4 diagram + demo recording + org profile"
   deliverables:
-    - "[ ] Makefile: setup, test, lint, demo, demo-quick, clean, help targets"
-    - "[ ] SQLite checkpointer (replace MemorySaver) -- resume interrupted runs"
-    - "[ ] LangSmith traces with meaningful run names and metadata tags"
-    - "[ ] Structured output dir: JSON + markdown brief + Forge YAML model + sensitivity tables"
-    - "[ ] Multi-ticker batch mode: python -m sentinel AAPL MSFT GOOG"
-    - "[ ] Error handling: graceful failure if ref fetch or forge tools error"
-
-next:
-  - version: "0.5.0"
-    summary: "Showcase -- C4 diagram + demo recording + org profile"
-    deliverables:
-      - "[ ] C4 Level 2 container diagram (LangGraph supervisor -> agents -> Forge MCP / Ref MCP / Claude)"
-      - "[ ] asciinema recording of end-to-end run in Sentinel README"
-      - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
-      - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
+    - "[ ] C4 Level 2 container diagram (LangGraph supervisor -> agents -> Forge MCP / Ref MCP / Claude)"
+    - "[ ] asciinema recording of end-to-end run in Sentinel README"
+    - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
+    - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
 
 released:
+  - version: "0.4.0"
+    date: "2026-02-22"
+    summary: "Persistence + observability + developer experience"
+    deliverables:
+      - "[x] Makefile: setup, test, lint, demo, demo-quick, clean, help targets"
+      - "[x] SQLite checkpointer (replace MemorySaver) -- resume interrupted runs"
+      - "[x] LangSmith traces with meaningful run names and metadata tags"
+      - "[x] Structured output dir: JSON + markdown brief + Forge YAML model per ticker"
+      - "[x] Multi-ticker batch mode: python -m sentinel AAPL MSFT GOOG"
+      - "[x] Error handling: graceful failure if ref fetch or forge tools error"
+      - "[x] ADR-007: SQLite Checkpointer over MemorySaver"
+      - "[x] ADR-008: Structured Output Directory"
+      - "[x] 126 unit tests at 100% coverage"
+
   - version: "0.3.0"
     date: "2026-02-22"
     summary: "Risk + scenarios -- full 5-agent pipeline with conditional routing"

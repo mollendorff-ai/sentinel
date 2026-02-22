@@ -3,6 +3,27 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] - 2026-02-22
+
+Persistence + observability + developer experience.
+
+### Added
+
+- **SQLite checkpointer** (`sentinel.checkpointer`): `create_checkpointer()` factory returns `SqliteSaver` context manager; persists pipeline state to `.sentinel/checkpoints.db`; enables resumable runs via `thread_id`
+- **Structured output** (`sentinel.output`): `write_run_output()` saves all pipeline artifacts to `output/{TICKER}/{YYYYMMDD-HHMMSS}/` — brief.md, raw_data.json, model.yaml, forge_results.json, risk/scenario JSON (full mode)
+- **LangSmith traces**: per-ticker `RunnableConfig` with `run_name`, `tags` (ticker, mode, version), and `metadata` (provider, model); traces filterable in LangSmith UI
+- **Multi-ticker batch mode**: `python -m sentinel AAPL MSFT GOOG` runs sequential analysis with per-ticker output and checkpointing
+- **Makefile**: setup, lint, test, check, demo, demo-quick, clean, help targets
+- **ADR-007:** SQLite checkpointer over MemorySaver for persistence (accepted)
+- **ADR-008:** Structured output directory design (accepted)
+
+### Changed
+
+- **Error handling**: all `await tool.ainvoke()` and `await llm.ainvoke()` calls wrapped in try/except across all 5 agents; MCP tool failures and LLM errors return graceful error dicts instead of crashing the graph; risk/scenario tools wrapped independently for partial results
+- **Pipeline** (`sentinel.graph.pipeline`): `compile_graph()` accepts optional `checkpointer` parameter
+- **CLI** (`sentinel.__main__`): multi-ticker support, checkpointer integration, LangSmith config, output writing, version v0.4.0
+- **Unit tests:** 126 tests at 100% coverage (was 77)
+
 ## [0.3.0] - 2026-02-22
 
 Risk + scenarios: full 5-agent pipeline with conditional routing.

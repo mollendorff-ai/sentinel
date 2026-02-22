@@ -255,3 +255,160 @@ async def test_modeler_node_exhausts_retries() -> None:
 
     assert "error" in result["forge_results"]
     assert "failed after" in result["forge_results"]["error"].lower()
+
+
+async def test_modeler_node_handles_llm_generation_exception() -> None:
+    """Verify modeler returns error when initial LLM call raises."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 100},
+    }
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_validate = MagicMock()
+    mock_validate.name = "forge_validate"
+    mock_calculate = MagicMock()
+    mock_calculate.name = "forge_calculate"
+
+    with (
+        patch("sentinel.agents.modeler.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.modeler.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_calculate],
+        ),
+    ):
+        result = await modeler_node(state)
+
+    assert result["model_yaml"] == ""
+    assert "LLM generation failed" in result["forge_results"]["error"]
+
+
+async def test_modeler_node_handles_validate_exception_in_loop() -> None:
+    """Verify modeler treats validate exception as failure and exhausts retries."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 100},
+    }
+
+    mock_response = AsyncMock()
+    mock_response.content = "some yaml"
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    mock_validate = MagicMock()
+    mock_validate.name = "forge_validate"
+    mock_validate.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_calculate = MagicMock()
+    mock_calculate.name = "forge_calculate"
+
+    with (
+        patch("sentinel.agents.modeler.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.modeler.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_calculate],
+        ),
+    ):
+        result = await modeler_node(state)
+
+    assert "error" in result["forge_results"]
+    assert "failed after" in result["forge_results"]["error"].lower()
+
+
+async def test_modeler_node_handles_calculate_exception() -> None:
+    """Verify modeler returns error when forge_calculate raises."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 100},
+    }
+
+    mock_response = AsyncMock()
+    mock_response.content = '_forge_version: "5.0.0"\ninputs:\n  revenue:\n    value: 100'
+
+    mock_validate = MagicMock()
+    mock_validate.name = "forge_validate"
+    mock_validate.ainvoke = AsyncMock(
+        return_value=[
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {"tables_valid": True, "scalars_valid": True, "mismatches": []},
+                ),
+            },
+        ],
+    )
+
+    mock_calculate = MagicMock()
+    mock_calculate.name = "forge_calculate"
+    mock_calculate.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch(
+            "sentinel.agents.modeler.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_response)),
+        ),
+        patch(
+            "sentinel.agents.modeler.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_calculate],
+        ),
+    ):
+        result = await modeler_node(state)
+
+    assert "forge_calculate failed" in result["forge_results"]["error"]
+    assert result["model_yaml"]
+
+
+async def test_modeler_node_handles_llm_correction_exception_in_loop() -> None:
+    """Verify modeler exhausts retries when LLM correction raises inside loop."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 100},
+    }
+
+    mock_initial_response = AsyncMock()
+    mock_initial_response.content = "initial yaml"
+
+    # First LLM call succeeds (initial generation), subsequent calls throw
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(
+        side_effect=[mock_initial_response, RuntimeError("correction boom")],
+    )
+
+    # Validation always fails to trigger correction
+    mock_validate = MagicMock()
+    mock_validate.name = "forge_validate"
+    mock_validate.ainvoke = AsyncMock(
+        return_value=[
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "tables_valid": False,
+                        "scalars_valid": False,
+                        "mismatches": [{"field": "x", "error": "bad"}],
+                    },
+                ),
+            },
+        ],
+    )
+
+    mock_calculate = MagicMock()
+    mock_calculate.name = "forge_calculate"
+
+    with (
+        patch("sentinel.agents.modeler.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.modeler.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_calculate],
+        ),
+    ):
+        result = await modeler_node(state)
+
+    assert "error" in result["forge_results"]

@@ -372,6 +372,202 @@ async def test_scenario_planner_uses_risk_yaml_when_available() -> None:
     assert "scenarios" in result["scenario_analysis"]
 
 
+async def test_scenario_planner_node_handles_validate_exception_in_loop() -> None:
+    """Verify scenario planner exhausts retries when validate raises in loop."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "model_yaml": VALID_YAML,
+        "forge_results": {"outputs.gross_profit": 52800},
+    }
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = VALID_YAML
+
+    mock_tools = _make_mock_tools()
+    mock_tools[0].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch(
+            "sentinel.agents.scenario_planner.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.scenario_planner.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=mock_tools,
+        ),
+    ):
+        result = await scenario_planner_node(state)
+
+    assert "error" in result["scenario_analysis"]
+    assert "failed after" in result["scenario_analysis"]["error"].lower()
+
+
+async def test_scenario_planner_node_handles_llm_correction_exception_in_loop() -> None:
+    """Verify scenario planner exhausts retries when LLM correction raises in loop."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "model_yaml": VALID_YAML,
+        "forge_results": {"outputs.gross_profit": 52800},
+    }
+
+    mock_initial_response = AsyncMock()
+    mock_initial_response.content = VALID_YAML
+
+    # First call succeeds (generation), correction call throws
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(
+        side_effect=[mock_initial_response, RuntimeError("correction boom")],
+    )
+
+    mock_tools = _make_mock_tools(validate_return=_make_invalid_validation())
+
+    with (
+        patch("sentinel.agents.scenario_planner.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.scenario_planner.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=mock_tools,
+        ),
+    ):
+        result = await scenario_planner_node(state)
+
+    assert "error" in result["scenario_analysis"]
+
+
+async def test_scenario_planner_node_handles_llm_exception() -> None:
+    """Verify scenario planner returns error when LLM generation raises."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "model_yaml": VALID_YAML,
+        "forge_results": {"outputs.gross_profit": 52800},
+    }
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    mock_tools = _make_mock_tools()
+
+    with (
+        patch("sentinel.agents.scenario_planner.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.scenario_planner.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=mock_tools,
+        ),
+    ):
+        result = await scenario_planner_node(state)
+
+    assert "error" in result["scenario_analysis"]
+    assert "LLM generation failed" in result["scenario_analysis"]["error"]
+
+
+async def test_scenario_planner_node_handles_scenarios_exception() -> None:
+    """Verify partial results when forge_scenarios raises but others succeed."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "model_yaml": VALID_YAML,
+        "forge_results": {"outputs.gross_profit": 52800},
+    }
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = VALID_YAML
+
+    mock_tools = _make_mock_tools()
+    mock_tools[1].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch(
+            "sentinel.agents.scenario_planner.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.scenario_planner.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=mock_tools,
+        ),
+    ):
+        result = await scenario_planner_node(state)
+
+    sa = result["scenario_analysis"]
+    assert sa["scenarios"] == []
+    assert sa["expected_values"] == {}
+    assert "error" not in sa["comparison"]
+    assert "error" not in sa["break_even_thresholds"]
+
+
+async def test_scenario_planner_node_handles_compare_exception() -> None:
+    """Verify partial results when forge_compare raises but others succeed."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "model_yaml": VALID_YAML,
+        "forge_results": {"outputs.gross_profit": 52800},
+    }
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = VALID_YAML
+
+    mock_tools = _make_mock_tools()
+    mock_tools[2].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch(
+            "sentinel.agents.scenario_planner.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.scenario_planner.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=mock_tools,
+        ),
+    ):
+        result = await scenario_planner_node(state)
+
+    sa = result["scenario_analysis"]
+    assert len(sa["scenarios"]) > 0
+    assert "error" in sa["comparison"]
+    assert "error" not in sa["break_even_thresholds"]
+
+
+async def test_scenario_planner_node_handles_break_even_exception() -> None:
+    """Verify partial results when forge_break_even raises but others succeed."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "model_yaml": VALID_YAML,
+        "forge_results": {"outputs.gross_profit": 52800},
+    }
+
+    mock_llm_response = AsyncMock()
+    mock_llm_response.content = VALID_YAML
+
+    mock_tools = _make_mock_tools()
+    mock_tools[3].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch(
+            "sentinel.agents.scenario_planner.get_llm",
+            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
+        ),
+        patch(
+            "sentinel.agents.scenario_planner.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=mock_tools,
+        ),
+    ):
+        result = await scenario_planner_node(state)
+
+    sa = result["scenario_analysis"]
+    assert len(sa["scenarios"]) > 0
+    assert "error" not in sa["comparison"]
+    assert "error" in sa["break_even_thresholds"]
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("ANTHROPIC_API_KEY"),

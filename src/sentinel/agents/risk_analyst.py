@@ -12,6 +12,9 @@ from sentinel.llm import get_llm
 from sentinel.tools.forge_mcp import get_forge_tools
 
 if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.tools import BaseTool
+
     from sentinel.graph.state import SentinelState
 
 logger = logging.getLogger(__name__)
@@ -93,6 +96,119 @@ def _cleanup(path: Path) -> None:
     bak.unlink(missing_ok=True)
 
 
+async def _validate_loop(
+    augmented_yaml: str,
+    ticker: str,
+    *,
+    llm: BaseChatModel,
+    validate: BaseTool,
+) -> tuple[str, bool]:
+    """Run the self-correction loop: validate -> fix -> retry.
+
+    Returns the (possibly corrected) YAML and whether validation passed.
+    """
+    for attempt in range(1, MAX_RETRIES + 1):
+        model_path = _write_temp_yaml(augmented_yaml, ticker)
+        try:
+            try:
+                val_result = await validate.ainvoke({"file_path": str(model_path)})
+                val_text = _text_from(val_result)
+            except Exception:
+                logger.exception(
+                    "Risk Analyst: forge_validate failed (attempt %d)",
+                    attempt,
+                )
+                continue
+
+            val_data = json.loads(val_text)
+            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
+                logger.info("Risk Analyst: validation passed (attempt %d)", attempt)
+                return augmented_yaml, True
+
+            logger.warning(
+                "Risk Analyst: validation failed (attempt %d): %s",
+                attempt,
+                val_text[:200],
+            )
+
+            if attempt < MAX_RETRIES:
+                correction = RISK_CORRECTION_PROMPT.format(
+                    errors=val_text,
+                    model_yaml=augmented_yaml,
+                )
+                try:
+                    response = await llm.ainvoke(correction)
+                except Exception:
+                    logger.exception(
+                        "Risk Analyst: LLM correction failed (attempt %d)",
+                        attempt,
+                    )
+                    continue
+                augmented_yaml = (
+                    response.content
+                    if isinstance(response.content, str)
+                    else str(response.content)
+                )
+                augmented_yaml = _strip_fences(augmented_yaml)
+        finally:
+            _cleanup(model_path)
+
+    logger.error("Risk Analyst: validation failed after %d attempts", MAX_RETRIES)
+    return augmented_yaml, False
+
+
+async def _run_risk_tools(
+    augmented_yaml: str,
+    ticker: str,
+    *,
+    simulate: BaseTool,
+    tornado: BaseTool,
+    break_even: BaseTool,
+) -> dict[str, Any]:
+    """Run simulate, tornado, and break_even independently (partial results survive)."""
+    model_path = _write_temp_yaml(augmented_yaml, ticker)
+    try:
+        try:
+            sim_result = await simulate.ainvoke(
+                {"file_path": str(model_path), "iterations": MC_ITERATIONS},
+            )
+            mc_data: dict[str, Any] = json.loads(_text_from(sim_result))
+        except Exception:
+            logger.exception("Risk Analyst: forge_simulate failed for %s", ticker)
+            mc_data = {"error": "forge_simulate failed"}
+
+        try:
+            torn_result = await tornado.ainvoke({"file_path": str(model_path)})
+            torn_data: dict[str, Any] = json.loads(_text_from(torn_result))
+        except Exception:
+            logger.exception("Risk Analyst: forge_tornado failed for %s", ticker)
+            torn_data = {"error": "forge_tornado failed"}
+
+        try:
+            be_result = await break_even.ainvoke(
+                {
+                    "file_path": str(model_path),
+                    "output": "outputs.operating_income",
+                    "vary": "inputs.revenue",
+                },
+            )
+            be_data: dict[str, Any] = json.loads(_text_from(be_result))
+        except Exception:
+            logger.exception("Risk Analyst: forge_break_even failed for %s", ticker)
+            be_data = {"error": "forge_break_even failed"}
+
+        logger.info("Risk Analyst: analysis complete for %s", ticker)
+    finally:
+        _cleanup(model_path)
+
+    return {
+        "monte_carlo": mc_data,
+        "tornado": torn_data,
+        "break_even": be_data,
+        "risk_yaml": augmented_yaml,
+    }
+
+
 async def risk_analyst_node(state: SentinelState) -> dict[str, Any]:
     """Augment a Forge model with Monte Carlo, tornado, and break-even analysis.
 
@@ -124,7 +240,7 @@ async def risk_analyst_node(state: SentinelState) -> dict[str, Any]:
 
     validate = next(t for t in tools if t.name == "forge_validate")
     simulate = next(t for t in tools if t.name == "forge_simulate")
-    tornado = next(t for t in tools if t.name == "forge_tornado")
+    tornado_tool = next(t for t in tools if t.name == "forge_tornado")
     break_even = next(t for t in tools if t.name == "forge_break_even")
 
     # Generate augmented YAML with risk sections
@@ -132,87 +248,34 @@ async def risk_analyst_node(state: SentinelState) -> dict[str, Any]:
         model_yaml=model_yaml,
         iterations=MC_ITERATIONS,
     )
-    response = await llm.ainvoke(prompt)
+    try:
+        response = await llm.ainvoke(prompt)
+    except Exception:
+        logger.exception("Risk Analyst: LLM augmentation failed for %s", ticker)
+        return {"risk_analysis": {"error": f"LLM augmentation failed for {ticker}"}}
     augmented_yaml = (
         response.content if isinstance(response.content, str) else str(response.content)
     )
     augmented_yaml = _strip_fences(augmented_yaml)
 
-    # Self-correction loop: validate -> fix -> retry
-    for attempt in range(1, MAX_RETRIES + 1):
-        model_path = _write_temp_yaml(augmented_yaml, ticker)
-        try:
-            val_result = await validate.ainvoke({"file_path": str(model_path)})
-            val_text = _text_from(val_result)
-
-            val_data = json.loads(val_text)
-            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
-                logger.info(
-                    "Risk Analyst: validation passed (attempt %d)",
-                    attempt,
-                )
-                break
-
-            logger.warning(
-                "Risk Analyst: validation failed (attempt %d): %s",
-                attempt,
-                val_text[:200],
-            )
-
-            if attempt < MAX_RETRIES:
-                correction = RISK_CORRECTION_PROMPT.format(
-                    errors=val_text,
-                    model_yaml=augmented_yaml,
-                )
-                response = await llm.ainvoke(correction)
-                augmented_yaml = (
-                    response.content
-                    if isinstance(response.content, str)
-                    else str(response.content)
-                )
-                augmented_yaml = _strip_fences(augmented_yaml)
-        finally:
-            _cleanup(model_path)
-    else:
-        logger.error(
-            "Risk Analyst: validation failed after %d attempts",
-            MAX_RETRIES,
-        )
+    # Validate with self-correction
+    augmented_yaml, passed = await _validate_loop(
+        augmented_yaml,
+        ticker,
+        llm=llm,
+        validate=validate,
+    )
+    if not passed:
         return {
-            "risk_analysis": {
-                "error": f"Validation failed after {MAX_RETRIES} attempts",
-            },
+            "risk_analysis": {"error": f"Validation failed after {MAX_RETRIES} attempts"},
         }
 
     # Run all three risk analyses
-    model_path = _write_temp_yaml(augmented_yaml, ticker)
-    try:
-        sim_result = await simulate.ainvoke(
-            {"file_path": str(model_path), "iterations": MC_ITERATIONS},
-        )
-        mc_data = json.loads(_text_from(sim_result))
-
-        torn_result = await tornado.ainvoke({"file_path": str(model_path)})
-        torn_data = json.loads(_text_from(torn_result))
-
-        be_result = await break_even.ainvoke(
-            {
-                "file_path": str(model_path),
-                "output": "outputs.operating_income",
-                "vary": "inputs.revenue",
-            },
-        )
-        be_data = json.loads(_text_from(be_result))
-
-        logger.info("Risk Analyst: analysis complete for %s", ticker)
-    finally:
-        _cleanup(model_path)
-
-    return {
-        "risk_analysis": {
-            "monte_carlo": mc_data,
-            "tornado": torn_data,
-            "break_even": be_data,
-            "risk_yaml": augmented_yaml,
-        },
-    }
+    risk_data = await _run_risk_tools(
+        augmented_yaml,
+        ticker,
+        simulate=simulate,
+        tornado=tornado_tool,
+        break_even=break_even,
+    )
+    return {"risk_analysis": risk_data}

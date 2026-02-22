@@ -15,3 +15,7 @@ venv/
 
 # Environment
 .env
+
+# Pipeline output
+output/
+.sentinel/
