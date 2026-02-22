@@ -17,6 +17,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+openai = ["langchain-openai>=0.3"]
+google = ["langchain-google-genai>=2.0"]
+groq = ["langchain-groq>=0.3"]
+all-llms = ["sentinel[openai,google,groq]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",

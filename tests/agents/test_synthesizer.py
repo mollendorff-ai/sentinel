@@ -24,7 +24,7 @@ async def test_synthesizer_node_produces_brief() -> None:
     mock_response.content = "# Executive Brief\n\nApple reported strong Q1 results."
 
     with patch(
-        "sentinel.agents.synthesizer.ChatAnthropic",
+        "sentinel.agents.synthesizer.get_llm",
         return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_response)),
     ):
         result = await synthesizer_node(state)
@@ -65,7 +65,7 @@ async def test_synthesizer_node_excludes_raw_output_from_prompt() -> None:
     mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     with patch(
-        "sentinel.agents.synthesizer.ChatAnthropic",
+        "sentinel.agents.synthesizer.get_llm",
         return_value=mock_llm,
     ):
         await synthesizer_node(state)

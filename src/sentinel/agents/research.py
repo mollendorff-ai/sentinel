@@ -6,8 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from langchain_anthropic import ChatAnthropic
-
+from sentinel.llm import get_llm
 from sentinel.tools.ref_fetch import RefFetchTool
 
 if TYPE_CHECKING:
@@ -123,11 +122,7 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
         return {"raw_data": {"error": f"No earnings data found for {ticker}", "ticker": ticker}}
 
     # Extract financials via Claude
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        temperature=0,
-        max_tokens=2048,
-    )
+    llm = get_llm()
     prompt = EXTRACTION_PROMPT.format(
         ticker=ticker,
         content="\n\n".join(combined_content)[:50000],

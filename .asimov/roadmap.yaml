@@ -47,9 +47,11 @@ released:
       - "[x] CLI entry point: python -m sentinel AAPL"
       - "[x] GitHub Actions CI: lint + test matrix (3.11/3.12) + markdownlint"
       - "[x] Integration test markers: 7 smoke tests separated, 4 mocked equivalents for CI coverage"
+      - "[x] Multi-provider LLM: get_llm() factory, env-var config (anthropic/openai/google/groq)"
       - "[x] ADR-003: Custom StateGraph over deprecated create_react_agent"
+      - "[x] ADR-004: Multi-provider LLM support via env-var factory"
       - "[x] README: badges (CI, coverage, Python, license) + status section"
-      - "[x] 42 unit tests at 100% coverage"
+      - "[x] 51 unit tests at 100% coverage"
 
   - version: "0.1.0"
     date: "2026-02-22"

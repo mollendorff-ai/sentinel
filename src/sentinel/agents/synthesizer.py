@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from langchain_anthropic import ChatAnthropic
+from sentinel.llm import get_llm
 
 if TYPE_CHECKING:
     from sentinel.graph.state import SentinelState
@@ -70,11 +70,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
     # Remove raw_output from forge_results for the prompt (verbose)
     forge_clean = {k: v for k, v in forge_results.items() if k != "raw_output"}
 
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        temperature=0,
-        max_tokens=2048,
-    )
+    llm = get_llm()
     prompt = SYNTHESIS_PROMPT.format(
         ticker=ticker,
         period=raw_data.get("period", "Unknown"),

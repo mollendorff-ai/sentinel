@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 
 from sentinel.graph.pipeline import compile_graph
+from sentinel.llm import PROVIDER_DEFAULTS
 
 
 def main() -> None:
@@ -24,7 +26,10 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
 
-    sys.stdout.write(f"Sentinel v0.2.0 — Analyzing {ticker}\n\n")
+    provider = os.environ.get("SENTINEL_LLM_PROVIDER", "anthropic").lower()
+    _, default_model = PROVIDER_DEFAULTS.get(provider, ("", "unknown"))
+    model = os.environ.get("SENTINEL_LLM_MODEL", default_model)
+    sys.stdout.write(f"Sentinel v0.2.0 — Analyzing {ticker} ({provider}/{model})\n\n")
 
     graph = compile_graph()
     result = asyncio.run(graph.ainvoke({"ticker": ticker}))

@@ -82,7 +82,7 @@ pytest
 
 ## Status
 
-**v0.2.0** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). 42 tests, 100% coverage.
+**v0.2.0** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). Multi-provider LLM support (Anthropic, OpenAI, Google, Groq). 50 tests, 100% coverage.
 
 Next: **v0.3.0** -- Risk Analyst + Scenario Planner agents, full 5-agent pipeline with conditional routing.
 

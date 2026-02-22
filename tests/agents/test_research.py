@@ -56,7 +56,7 @@ async def test_research_node_extracts_data() -> None:
             return_value=fake_ref_result,
         ),
         patch(
-            "sentinel.agents.research.ChatAnthropic",
+            "sentinel.agents.research.get_llm",
             return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
         ),
     ):
@@ -99,7 +99,7 @@ async def test_research_node_handles_non_json_response() -> None:
             return_value=fake_ref_result,
         ),
         patch(
-            "sentinel.agents.research.ChatAnthropic",
+            "sentinel.agents.research.get_llm",
             return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
         ),
     ):
@@ -128,7 +128,7 @@ async def test_research_node_includes_headingless_sections() -> None:
             return_value=fake_ref_result,
         ),
         patch(
-            "sentinel.agents.research.ChatAnthropic",
+            "sentinel.agents.research.get_llm",
             return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
         ),
     ):
@@ -155,7 +155,7 @@ async def test_research_node_handles_unparseable_response() -> None:
             return_value=fake_ref_result,
         ),
         patch(
-            "sentinel.agents.research.ChatAnthropic",
+            "sentinel.agents.research.get_llm",
             return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
         ),
     ):

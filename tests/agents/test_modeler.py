@@ -107,7 +107,7 @@ async def test_modeler_node_generates_and_calculates() -> None:
 
     with (
         patch(
-            "sentinel.agents.modeler.ChatAnthropic",
+            "sentinel.agents.modeler.get_llm",
             return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
         ),
         patch(
@@ -159,7 +159,7 @@ async def test_modeler_node_retries_on_validation_failure() -> None:
 
     with (
         patch(
-            "sentinel.agents.modeler.ChatAnthropic",
+            "sentinel.agents.modeler.get_llm",
             return_value=mock_llm,
         ),
         patch(
@@ -197,7 +197,7 @@ async def test_modeler_node_exhausts_retries() -> None:
     mock_calculate.name = "forge_calculate"
 
     with (
-        patch("sentinel.agents.modeler.ChatAnthropic", return_value=mock_llm),
+        patch("sentinel.agents.modeler.get_llm", return_value=mock_llm),
         patch(
             "sentinel.agents.modeler.get_forge_tools",
             new_callable=AsyncMock,

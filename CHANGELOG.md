@@ -15,9 +15,11 @@ Core 3-agent LangGraph pipeline: one ticker in, one executive brief out.
 - **Synthesizer agent** (`sentinel.agents.synthesizer`): produces 300-500 word executive briefs from Forge calculation results; every number traces to deterministic Forge output
 - **CLI entry point:** `python -m sentinel AAPL` runs the full pipeline and prints the brief
 - **GitHub Actions CI:** lint (ruff format + check ALL), test matrix (Python 3.11/3.12), markdownlint; integration tests marked and skipped in CI
+- **Multi-provider LLM** (`sentinel.llm`): factory function `get_llm()` configurable via `SENTINEL_LLM_PROVIDER` and `SENTINEL_LLM_MODEL` env vars; supports Anthropic (default), OpenAI, Google Gemini, Groq; optional extras in pyproject.toml (`pip install sentinel[google]`)
 - **ADR-003:** Custom StateGraph over deprecated `create_react_agent` (accepted)
+- **ADR-004:** Multi-provider LLM support via env-var factory (accepted)
 - **README:** badges (CI, coverage, Python, license) and status section
-- **Unit tests:** 42 tests at 100% coverage; integration tests marked separately for CI
+- **Unit tests:** 51 tests at 100% coverage; integration tests marked separately for CI
 
 ## [0.1.0] - 2026-02-22
 

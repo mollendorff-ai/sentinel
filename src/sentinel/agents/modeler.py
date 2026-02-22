@@ -8,8 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from langchain_anthropic import ChatAnthropic
-
+from sentinel.llm import get_llm
 from sentinel.tools.forge_mcp import get_forge_tools
 
 if TYPE_CHECKING:
@@ -123,11 +122,7 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
 
     logger.info("Modeler agent: generating Forge model for %s", ticker)
 
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        temperature=0,
-        max_tokens=4096,
-    )
+    llm = get_llm(max_tokens=4096)
     tools = await get_forge_tools()
 
     validate = next(t for t in tools if t.name == "forge_validate")
