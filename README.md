@@ -43,7 +43,7 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | ----- | ---------- |
 | Orchestration | LangGraph (Python) — [why Python?](docs/adr/001-python-over-typescript.md) |
 | Tracing | LangSmith |
-| Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) (Rust CLI, 173 Excel functions, 7 analytical engines) |
+| Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (10 tools, 173 Excel functions, 7 analytical engines) |
 | Data ingestion | [Ref](https://github.com/mollendorff-ai/ref) (Rust CLI, headless Chrome, structured JSON) |
 | LLM | Claude / GPT (model-agnostic) |
 
