@@ -4,18 +4,14 @@
 
 LangGraph agents fetch live earnings data, build financial models, run Monte Carlo simulations, and produce investment-grade analysis briefs — with zero hallucinated numbers.
 
-```text
-"Analyze Apple's latest earnings"
-
-  Research Agent ──► Ref (fetch earnings release)
-       │
-  Modeler Agent ──► Forge (write YAML, validate, calculate DCF)
-       │
-  Risk Analyst  ──► Forge (Monte Carlo, tornado sensitivity)
-       │
-  Scenario Agent ──► Forge (bull/base/bear, probability-weighted)
-       │
-  Synthesizer   ──► Executive brief with valuation range + confidence intervals
+```mermaid
+graph TD
+    Q["Analyze Apple's latest earnings"] --> R
+    R[Research Agent] -->|Ref| M[Modeler Agent]
+    M -->|Forge: validate + calculate| RA[Risk Analyst]
+    RA -->|Forge: Monte Carlo + tornado| S[Scenario Agent]
+    S -->|Forge: bull / base / bear| SY[Synthesizer]
+    SY --> OUT[Executive brief + valuation range]
 ```
 
 **AI reasons. Forge calculates. Every number is deterministic and traceable.**
