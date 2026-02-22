@@ -1,56 +1,52 @@
 current:
-  version: "0.2.0"
+  version: "0.3.0"
   status: pending
-  summary: "Core 3-agent flow — one ticker in, one brief out"
+  summary: "Risk + scenarios -- full 5-agent pipeline"
   team_parallel: true
   deliverables:
-    # Agent A (research)
-    - "[ ] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, forge_results, brief)"
-    - "[ ] Research agent: ref fetch earnings release → Claude extracts revenue, margins, guidance"
-    # Agent B (modeler)
-    - "[ ] Modeler agent: Claude writes Forge YAML from extracted data → forge_validate → forge_calculate"
-    - "[ ] Self-correction loop: if forge_validate returns errors, Modeler retries with error context"
-    # Agent C (synth + wiring)
-    - "[ ] Synthesizer agent: reads Forge calculation results → produces executive brief with valuation"
-    - "[ ] LangGraph graph: Research → Modeler → Synthesizer (linear flow)"
-    - "[ ] CLI entry point: python -m sentinel AAPL"
-    # Lead (integration)
-    - "[ ] End-to-end test: one real ticker producing a valid brief with real Forge numbers"
+    # Agent A (risk)
+    - "[ ] Risk Analyst agent: forge_sensitivity on key assumptions + forge_break_even for margin of safety"
+    - "[ ] Fallback: Monte Carlo via forge CLI subprocess (forge simulate -- not in MCP)"
+    # Agent B (scenarios)
+    - "[ ] Scenario Planner agent: construct bull/base/bear YAML variants -> forge_compare"
+    - "[ ] Scenario narratives from guidance language (Claude reasoning)"
+    # Lead (graph + routing)
+    - "[ ] LangGraph graph: Research -> Modeler -> Risk Analyst -> Scenario Planner -> Synthesizer"
+    - "[ ] Synthesizer enhanced: valuation range + risk factors + scenario comparison"
+    - "[ ] Conditional routing: --quick flag skips Risk + Scenario nodes"
 
 next:
-  - version: "0.3.0"
-    summary: "Risk + scenarios — full 5-agent pipeline"
-    team_parallel: true
-    deliverables:
-      # Agent A (risk)
-      - "[ ] Risk Analyst agent: forge_sensitivity on key assumptions + forge_break_even for margin of safety"
-      - "[ ] Fallback: Monte Carlo via forge CLI subprocess (forge simulate — not in MCP)"
-      # Agent B (scenarios)
-      - "[ ] Scenario Planner agent: construct bull/base/bear YAML variants → forge_compare"
-      - "[ ] Scenario narratives from guidance language (Claude reasoning)"
-      # Lead (graph + routing)
-      - "[ ] LangGraph graph: Research → Modeler → Risk Analyst → Scenario Planner → Synthesizer"
-      - "[ ] Synthesizer enhanced: valuation range + risk factors + scenario comparison"
-      - "[ ] Conditional routing: --quick flag skips Risk + Scenario nodes"
-
   - version: "0.4.0"
     summary: "Persistence + observability + polish"
     deliverables:
-      - "[ ] SQLite checkpointer (replace MemorySaver) — resume interrupted runs"
+      - "[ ] SQLite checkpointer (replace MemorySaver) -- resume interrupted runs"
       - "[ ] LangSmith traces with meaningful run names and metadata tags"
       - "[ ] Structured output dir: JSON + markdown brief + Forge YAML model + sensitivity tables"
       - "[ ] Multi-ticker batch mode: python -m sentinel AAPL MSFT GOOG"
       - "[ ] Error handling: graceful failure if ref fetch or forge tools error"
 
   - version: "0.5.0"
-    summary: "Showcase — C4 diagram + demo recording + org profile"
+    summary: "Showcase -- C4 diagram + demo recording + org profile"
     deliverables:
-      - "[ ] C4 Level 2 container diagram (LangGraph supervisor → agents → Forge MCP / Ref CLI / Claude)"
+      - "[ ] C4 Level 2 container diagram (LangGraph supervisor -> agents -> Forge MCP / Ref CLI / Claude)"
       - "[ ] asciinema recording of end-to-end run in Sentinel README"
       - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
       - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
 
 released:
+  - version: "0.2.0"
+    date: "2026-02-22"
+    summary: "Core 3-agent flow -- one ticker in, one brief out"
+    deliverables:
+      - "[x] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, forge_results, brief)"
+      - "[x] Research agent: ref fetch earnings release -> Claude extracts revenue, margins, guidance"
+      - "[x] Modeler agent: Claude writes Forge YAML from extracted data -> forge_validate -> forge_calculate"
+      - "[x] Self-correction loop: if forge_validate returns errors, Modeler retries with error context"
+      - "[x] Synthesizer agent: reads Forge calculation results -> produces executive brief with valuation"
+      - "[x] LangGraph graph: Research -> Modeler -> Synthesizer (linear flow)"
+      - "[x] CLI entry point: python -m sentinel AAPL"
+      - "[x] 38 unit tests at 100% coverage"
+
   - version: "0.1.0"
     date: "2026-02-22"
     summary: "Project scaffold + Forge MCP + Ref tool"
@@ -63,7 +59,7 @@ released:
       - "[x] Forge MCP client via langchain-mcp-adapters (stdio transport: forge mcp)"
       - "[x] All 10 Forge tools discovered and verified"
       - "[x] Smoke tests: forge_validate + forge_calculate on sample YAML"
-      - "[x] Ref CLI wrapper as LangChain tool (subprocess: ref fetch URL → structured JSON)"
+      - "[x] Ref CLI wrapper as LangChain tool (subprocess: ref fetch URL -> structured JSON)"
       - "[x] Smoke tests: ref fetch structured JSON + error handling"
 
 backlog:

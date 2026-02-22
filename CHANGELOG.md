@@ -3,6 +3,19 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-02-22
+
+Core 3-agent LangGraph pipeline: one ticker in, one executive brief out.
+
+### Added
+
+- **LangGraph pipeline** (`sentinel.graph`): StateGraph wiring Research -> Modeler -> Synthesizer; typed state schema (`SentinelState`); compiled graph with `ainvoke` support
+- **Research agent** (`sentinel.agents.research`): fetches earnings data via `ref fetch`, extracts structured financials (revenue, margins, growth) via Claude; handles multiple URL sources and non-JSON Claude responses
+- **Modeler agent** (`sentinel.agents.modeler`): generates Forge v5.0.0 YAML models from extracted data; self-correction loop (validate -> fix -> retry up to 3 times); calculates via `forge_calculate`
+- **Synthesizer agent** (`sentinel.agents.synthesizer`): produces 300-500 word executive briefs from Forge calculation results; every number traces to deterministic Forge output
+- **CLI entry point:** `python -m sentinel AAPL` runs the full pipeline and prints the brief
+- **Unit tests:** 38 tests at 100% coverage; all agents tested with mocked Claude and Forge; pipeline integration test verifies node execution order
+
 ## [0.1.0] - 2026-02-22
 
 Project scaffold, Forge MCP integration, and Ref CLI wrapper.
