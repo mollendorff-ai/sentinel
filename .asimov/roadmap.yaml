@@ -1,58 +1,79 @@
 current:
   version: "0.1.0"
   status: in_progress
-  summary: "Project scaffold + tool wrappers"
+  summary: "Project scaffold + Forge MCP + Ref tool"
+  team_parallel: true
   deliverables:
-    - "[ ] pyproject.toml with langgraph, langchain, langsmith deps"
-    - "[ ] Python venv + editable install"
-    - "[ ] forge CLI tool wrapper (subprocess: validate, calculate, simulate, tornado, scenarios)"
-    - "[ ] ref CLI tool wrapper (subprocess: ref fetch → structured JSON)"
-    - "[ ] LangSmith tracing enabled from day one"
-    - "[ ] ADR-001 accepted: Python over TypeScript"
+    # Agent A (scaffold)
+    - "[ ] pyproject.toml: langgraph, langchain-anthropic, langchain-mcp-adapters, langsmith"
+    - "[ ] Python venv + editable install (uv or pip)"
+    - "[ ] LangSmith tracing wired (.env with LANGSMITH_API_KEY, project name)"
+    - "[ ] ADR-001: Python over TypeScript (done)"
+    - "[ ] ADR-002: Forge MCP over CLI subprocess for core tools"
+    # Agent B (forge-mcp)
+    - "[ ] Forge MCP client via langchain-mcp-adapters (stdio transport: forge mcp)"
+    - "[ ] Verify all 10 Forge tools discovered: validate, calculate, audit, export, import, sensitivity, goal_seek, break_even, variance, compare"
+    - "[ ] Smoke test: call forge_validate + forge_calculate on a sample YAML"
+    # Agent C (ref-tool)
+    - "[ ] Ref CLI wrapper as LangChain tool (subprocess: ref fetch URL → structured JSON)"
+    - "[ ] Smoke test: ref fetch a real earnings page, return parsed JSON"
 
 next:
   - version: "0.2.0"
     summary: "Core 3-agent flow — one ticker in, one brief out"
+    team_parallel: true
     deliverables:
-      - "[ ] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, results, brief)"
-      - "[ ] Research agent: ref fetch earnings release → extract revenue, margins, guidance"
-      - "[ ] Modeler agent: write Forge YAML from extracted data → validate → calculate DCF"
-      - "[ ] Synthesizer agent: read Forge outputs → produce executive brief with valuation"
+      # Agent A (research)
+      - "[ ] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, forge_results, brief)"
+      - "[ ] Research agent: ref fetch earnings release → Claude extracts revenue, margins, guidance"
+      # Agent B (modeler)
+      - "[ ] Modeler agent: Claude writes Forge YAML from extracted data → forge_validate → forge_calculate"
+      - "[ ] Self-correction loop: if forge_validate returns errors, Modeler retries with error context"
+      # Agent C (synth + wiring)
+      - "[ ] Synthesizer agent: reads Forge calculation results → produces executive brief with valuation"
       - "[ ] LangGraph graph: Research → Modeler → Synthesizer (linear flow)"
-      - "[ ] Self-correction loop: if Forge validate fails, Modeler retries with error context"
       - "[ ] CLI entry point: python -m sentinel AAPL"
-      - "[ ] End-to-end test: at least one real ticker producing a valid brief"
+      # Lead (integration)
+      - "[ ] End-to-end test: one real ticker producing a valid brief with real Forge numbers"
 
   - version: "0.3.0"
     summary: "Risk + scenarios — full 5-agent pipeline"
+    team_parallel: true
     deliverables:
-      - "[ ] Risk Analyst agent: Monte Carlo distributions on uncertain inputs (forge simulate)"
-      - "[ ] Scenario Planner agent: bull/base/bear from guidance language (forge scenarios)"
+      # Agent A (risk)
+      - "[ ] Risk Analyst agent: forge_sensitivity on key assumptions + forge_break_even for margin of safety"
+      - "[ ] Fallback: Monte Carlo via forge CLI subprocess (forge simulate — not in MCP)"
+      # Agent B (scenarios)
+      - "[ ] Scenario Planner agent: construct bull/base/bear YAML variants → forge_compare"
+      - "[ ] Scenario narratives from guidance language (Claude reasoning)"
+      # Lead (graph + routing)
       - "[ ] LangGraph graph: Research → Modeler → Risk Analyst → Scenario Planner → Synthesizer"
-      - "[ ] Synthesizer enhanced: valuation range + confidence intervals + risk factors"
-      - "[ ] Conditional routing: skip Risk/Scenario if --quick flag"
+      - "[ ] Synthesizer enhanced: valuation range + risk factors + scenario comparison"
+      - "[ ] Conditional routing: --quick flag skips Risk + Scenario nodes"
 
   - version: "0.4.0"
-    summary: "Persistence + observability"
+    summary: "Persistence + observability + polish"
     deliverables:
       - "[ ] SQLite checkpointer (replace MemorySaver) — resume interrupted runs"
       - "[ ] LangSmith traces with meaningful run names and metadata tags"
-      - "[ ] Structured output: JSON + markdown brief + Forge YAML model (all saved to output dir)"
+      - "[ ] Structured output dir: JSON + markdown brief + Forge YAML model + sensitivity tables"
       - "[ ] Multi-ticker batch mode: python -m sentinel AAPL MSFT GOOG"
+      - "[ ] Error handling: graceful failure if ref fetch or forge tools error"
 
   - version: "0.5.0"
-    summary: "Showcase assets — C4 diagram + demo recording"
+    summary: "Showcase — C4 diagram + demo recording + org profile"
     deliverables:
-      - "[ ] C4 Level 2 container diagram (LangGraph supervisor → agents → Forge/Ref/Claude)"
-      - "[ ] asciinema recording of end-to-end run (real ticker, real output)"
+      - "[ ] C4 Level 2 container diagram (LangGraph supervisor → agents → Forge MCP / Ref CLI / Claude)"
+      - "[ ] asciinema recording of end-to-end run in Sentinel README"
       - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
-      - "[ ] README rewritten with architecture diagram, real example output, LangSmith screenshot"
+      - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
 
 backlog:
   - "Human-in-the-loop: analyst approval gate before Synthesizer"
   - "Streaming: real-time agent progress to terminal (LangGraph streaming API)"
-  - "RAG layer: historical earnings for trend comparison (Qdrant or ChromaDB)"
+  - "RAG: historical earnings for trend comparison (Qdrant or ChromaDB)"
   - "Comparative analysis: multiple companies in same sector"
   - "PDF report generation (WeasyPrint or similar)"
-  - "MCP server wrapper: expose Sentinel as MCP tool for Claude Code"
+  - "Expose Sentinel itself as MCP server (meta: MCP tools calling MCP tools)"
+  - "Add Monte Carlo + tornado to Forge MCP server (upstream PR)"
   - "Docker containerization for reproducible demos"
