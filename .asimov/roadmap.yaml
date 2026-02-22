@@ -1,12 +1,58 @@
 current:
   version: "0.1.0"
   status: in_progress
-  summary: "Initial setup"
+  summary: "Project scaffold + tool wrappers"
   deliverables:
-    - "Define project goals and project.yaml"
-    - "Set up Python project (pyproject.toml, venv)"
-    - "Install langgraph, langchain, langsmith dependencies"
-    - "Create forge CLI tool wrapper"
-    - "Create ref CLI tool wrapper"
-    - "Wire LangGraph agent with both tools"
-    - "Enable LangSmith tracing"
+    - "[ ] pyproject.toml with langgraph, langchain, langsmith deps"
+    - "[ ] Python venv + editable install"
+    - "[ ] forge CLI tool wrapper (subprocess: validate, calculate, simulate, tornado, scenarios)"
+    - "[ ] ref CLI tool wrapper (subprocess: ref fetch → structured JSON)"
+    - "[ ] LangSmith tracing enabled from day one"
+    - "[ ] ADR-001 accepted: Python over TypeScript"
+
+next:
+  - version: "0.2.0"
+    summary: "Core 3-agent flow — one ticker in, one brief out"
+    deliverables:
+      - "[ ] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, results, brief)"
+      - "[ ] Research agent: ref fetch earnings release → extract revenue, margins, guidance"
+      - "[ ] Modeler agent: write Forge YAML from extracted data → validate → calculate DCF"
+      - "[ ] Synthesizer agent: read Forge outputs → produce executive brief with valuation"
+      - "[ ] LangGraph graph: Research → Modeler → Synthesizer (linear flow)"
+      - "[ ] Self-correction loop: if Forge validate fails, Modeler retries with error context"
+      - "[ ] CLI entry point: python -m sentinel AAPL"
+      - "[ ] End-to-end test: at least one real ticker producing a valid brief"
+
+  - version: "0.3.0"
+    summary: "Risk + scenarios — full 5-agent pipeline"
+    deliverables:
+      - "[ ] Risk Analyst agent: Monte Carlo distributions on uncertain inputs (forge simulate)"
+      - "[ ] Scenario Planner agent: bull/base/bear from guidance language (forge scenarios)"
+      - "[ ] LangGraph graph: Research → Modeler → Risk Analyst → Scenario Planner → Synthesizer"
+      - "[ ] Synthesizer enhanced: valuation range + confidence intervals + risk factors"
+      - "[ ] Conditional routing: skip Risk/Scenario if --quick flag"
+
+  - version: "0.4.0"
+    summary: "Persistence + observability"
+    deliverables:
+      - "[ ] SQLite checkpointer (replace MemorySaver) — resume interrupted runs"
+      - "[ ] LangSmith traces with meaningful run names and metadata tags"
+      - "[ ] Structured output: JSON + markdown brief + Forge YAML model (all saved to output dir)"
+      - "[ ] Multi-ticker batch mode: python -m sentinel AAPL MSFT GOOG"
+
+  - version: "0.5.0"
+    summary: "Showcase assets — C4 diagram + demo recording"
+    deliverables:
+      - "[ ] C4 Level 2 container diagram (LangGraph supervisor → agents → Forge/Ref/Claude)"
+      - "[ ] asciinema recording of end-to-end run (real ticker, real output)"
+      - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
+      - "[ ] README rewritten with architecture diagram, real example output, LangSmith screenshot"
+
+backlog:
+  - "Human-in-the-loop: analyst approval gate before Synthesizer"
+  - "Streaming: real-time agent progress to terminal (LangGraph streaming API)"
+  - "RAG layer: historical earnings for trend comparison (Qdrant or ChromaDB)"
+  - "Comparative analysis: multiple companies in same sector"
+  - "PDF report generation (WeasyPrint or similar)"
+  - "MCP server wrapper: expose Sentinel as MCP tool for Claude Code"
+  - "Docker containerization for reproducible demos"
