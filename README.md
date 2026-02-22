@@ -1,3 +1,8 @@
+[![CI](https://github.com/mollendorff-ai/sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/mollendorff-ai/sentinel/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](pyproject.toml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 # Sentinel
 
 **Autonomous earnings analysis powered by multi-agent AI.**
@@ -77,7 +82,11 @@ pytest
 
 ## Status
 
-Under construction.
+**v0.2.0** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). 42 tests, 100% coverage.
+
+Next: **v0.3.0** -- Risk Analyst + Scenario Planner agents, full 5-agent pipeline with conditional routing.
+
+See [CHANGELOG](CHANGELOG.md) and [roadmap](.asimov/roadmap.yaml) for details.
 
 ## License
 
