@@ -1,0 +1,23 @@
+_forge_version: "5.0.0"
+
+inputs:
+  revenue:
+    value: 1000000
+    formula: null
+  cogs:
+    value: 400000
+    formula: null
+  opex:
+    value: 200000
+    formula: null
+
+outputs:
+  gross_profit:
+    value: null
+    formula: "=inputs.revenue - inputs.cogs"
+  operating_income:
+    value: null
+    formula: "=outputs.gross_profit - inputs.opex"
+  margin:
+    value: null
+    formula: "=outputs.operating_income / inputs.revenue"

@@ -47,12 +47,32 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | Data ingestion | [Ref](https://github.com/mollendorff-ai/ref) (Rust CLI, headless Chrome, structured JSON) |
 | LLM | Claude / GPT (model-agnostic) |
 
-## Quick Start
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11+
+- [Forge](https://github.com/mollendorff-ai/forge) v0.3.0+ (MCP server)
+- [Ref](https://github.com/mollendorff-ai/ref) (web content fetcher)
+
+### Install
 
 ```bash
-# Prerequisites: forge and ref installed, Python 3.11+
-pip install -e .
-python -m sentinel "AAPL"
+# Clone and install in editable mode
+git clone https://github.com/mollendorff-ai/sentinel.git
+cd sentinel
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+### Run tests
+
+```bash
+pytest
 ```
 
 ## Status

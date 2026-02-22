@@ -1,41 +1,23 @@
 current:
-  version: "0.1.0"
-  status: in_progress
-  summary: "Project scaffold + Forge MCP + Ref tool"
+  version: "0.2.0"
+  status: pending
+  summary: "Core 3-agent flow — one ticker in, one brief out"
   team_parallel: true
   deliverables:
-    # Agent A (scaffold)
-    - "[ ] pyproject.toml: langgraph, langchain-anthropic, langchain-mcp-adapters, langsmith"
-    - "[ ] Python venv + editable install (uv or pip)"
-    - "[ ] LangSmith tracing wired (.env with LANGSMITH_API_KEY, project name)"
-    - "[ ] ADR-001: Python over TypeScript (done)"
-    - "[ ] ADR-002: Forge MCP over CLI subprocess for core tools"
-    # Agent B (forge-mcp)
-    - "[ ] Forge MCP client via langchain-mcp-adapters (stdio transport: forge mcp)"
-    - "[ ] Verify all 10 Forge tools discovered: validate, calculate, audit, export, import, sensitivity, goal_seek, break_even, variance, compare"
-    - "[ ] Smoke test: call forge_validate + forge_calculate on a sample YAML"
-    # Agent C (ref-tool)
-    - "[ ] Ref CLI wrapper as LangChain tool (subprocess: ref fetch URL → structured JSON)"
-    - "[ ] Smoke test: ref fetch a real earnings page, return parsed JSON"
+    # Agent A (research)
+    - "[ ] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, forge_results, brief)"
+    - "[ ] Research agent: ref fetch earnings release → Claude extracts revenue, margins, guidance"
+    # Agent B (modeler)
+    - "[ ] Modeler agent: Claude writes Forge YAML from extracted data → forge_validate → forge_calculate"
+    - "[ ] Self-correction loop: if forge_validate returns errors, Modeler retries with error context"
+    # Agent C (synth + wiring)
+    - "[ ] Synthesizer agent: reads Forge calculation results → produces executive brief with valuation"
+    - "[ ] LangGraph graph: Research → Modeler → Synthesizer (linear flow)"
+    - "[ ] CLI entry point: python -m sentinel AAPL"
+    # Lead (integration)
+    - "[ ] End-to-end test: one real ticker producing a valid brief with real Forge numbers"
 
 next:
-  - version: "0.2.0"
-    summary: "Core 3-agent flow — one ticker in, one brief out"
-    team_parallel: true
-    deliverables:
-      # Agent A (research)
-      - "[ ] LangGraph state schema (TypedDict: ticker, raw_data, model_yaml, forge_results, brief)"
-      - "[ ] Research agent: ref fetch earnings release → Claude extracts revenue, margins, guidance"
-      # Agent B (modeler)
-      - "[ ] Modeler agent: Claude writes Forge YAML from extracted data → forge_validate → forge_calculate"
-      - "[ ] Self-correction loop: if forge_validate returns errors, Modeler retries with error context"
-      # Agent C (synth + wiring)
-      - "[ ] Synthesizer agent: reads Forge calculation results → produces executive brief with valuation"
-      - "[ ] LangGraph graph: Research → Modeler → Synthesizer (linear flow)"
-      - "[ ] CLI entry point: python -m sentinel AAPL"
-      # Lead (integration)
-      - "[ ] End-to-end test: one real ticker producing a valid brief with real Forge numbers"
-
   - version: "0.3.0"
     summary: "Risk + scenarios — full 5-agent pipeline"
     team_parallel: true
@@ -67,6 +49,22 @@ next:
       - "[ ] asciinema recording of end-to-end run in Sentinel README"
       - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
       - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
+
+released:
+  - version: "0.1.0"
+    date: "2026-02-22"
+    summary: "Project scaffold + Forge MCP + Ref tool"
+    deliverables:
+      - "[x] pyproject.toml: langgraph, langchain-anthropic, langchain-mcp-adapters, langsmith"
+      - "[x] Python venv + editable install (uv or pip)"
+      - "[x] LangSmith tracing wired (.env.example with LANGSMITH_API_KEY, project name)"
+      - "[x] ADR-001: Python over TypeScript"
+      - "[x] ADR-002: Forge MCP over CLI subprocess for core tools"
+      - "[x] Forge MCP client via langchain-mcp-adapters (stdio transport: forge mcp)"
+      - "[x] All 10 Forge tools discovered and verified"
+      - "[x] Smoke tests: forge_validate + forge_calculate on sample YAML"
+      - "[x] Ref CLI wrapper as LangChain tool (subprocess: ref fetch URL → structured JSON)"
+      - "[x] Smoke tests: ref fetch structured JSON + error handling"
 
 backlog:
   - "Human-in-the-loop: analyst approval gate before Synthesizer"
