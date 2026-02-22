@@ -1,4 +1,4 @@
-"""Forge MCP client — connects to Forge's 10 financial analysis tools via MCP."""
+"""Forge MCP client — connects to Forge's 20 financial modelling and analysis tools via MCP."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -22,9 +22,19 @@ FORGE_TOOL_NAMES = frozenset(
         "forge_break_even",
         "forge_variance",
         "forge_compare",
+        "forge_simulate",
+        "forge_scenarios",
+        "forge_decision_tree",
+        "forge_real_options",
+        "forge_tornado",
+        "forge_bootstrap",
+        "forge_bayesian",
+        "forge_schema",
+        "forge_functions",
+        "forge_examples",
     },
 )
-"""All 10 tools exposed by ``forge mcp``."""
+"""All 20 tools exposed by ``forge mcp``."""
 
 FORGE_CONNECTION = {
     "forge": {

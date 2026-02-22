@@ -50,7 +50,7 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | ----- | ---------- |
 | Orchestration | LangGraph (Python) — [why Python?](docs/adr/001-python-over-typescript.md) |
 | Tracing | LangSmith |
-| Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (10 tools, 173 Excel functions, 7 analytical engines) |
+| Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (20 tools, 173 Excel functions, 7 analytical engines) |
 | Data ingestion | [Ref](https://github.com/mollendorff-ai/ref) via MCP (6 tools, headless Chrome, structured JSON) |
 | LLM | Any LangChain-compatible model — [swap with one env var](docs/adr/004-multi-provider-llm-support.md) |
 
@@ -84,7 +84,7 @@ pytest
 
 ## Status
 
-**v0.2.1** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). LLM-agnostic -- any LangChain-compatible provider via env var. Forge + Ref both via MCP. 48 tests, 100% coverage.
+**v0.2.2** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). LLM-agnostic -- any LangChain-compatible provider via env var. Forge + Ref both via MCP. 48 tests, 100% coverage.
 
 Next: **v0.3.0** -- Risk Analyst + Scenario Planner agents, full 5-agent pipeline with conditional routing.
 

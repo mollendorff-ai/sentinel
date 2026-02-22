@@ -43,5 +43,5 @@ def test_main_runs_pipeline(
         main()
 
     out = capsys.readouterr().out
-    assert "Sentinel v0.2.1" in out
+    assert "Sentinel v0.2.2" in out
     assert "Apple is doing great." in out

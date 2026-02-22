@@ -3,6 +3,17 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.2] - 2026-02-22
+
+Forge MCP tool list updated from 10 to 20. No more CLI subprocess fallback.
+
+### Changed
+
+- **Forge MCP client** (`sentinel.tools.forge_mcp`): FORGE_TOOL_NAMES expanded from 10 to 20 tools; 7 new analysis engines (simulate, scenarios, decision_tree, real_options, tornado, bootstrap, bayesian) and 3 discovery tools (schema, functions, examples)
+- **Modeler agent** (`sentinel.agents.modeler`): validation and calculation result parsing updated for Forge structured JSON responses (`tables_valid`/`scalars_valid` for validation, `scalars` dict for calculation)
+- **ADR-002** updated: CLI subprocess fallback removed — all Forge tools now available via MCP
+- **Roadmap** updated: v0.3.0 Risk Analyst and Scenario Planner agents will use forge_simulate, forge_tornado, forge_scenarios via MCP directly
+
 ## [0.2.1] - 2026-02-22
 
 Ref MCP migration: subprocess CLI wrapper replaced with native MCP client.

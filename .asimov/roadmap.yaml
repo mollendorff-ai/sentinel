@@ -5,10 +5,9 @@ current:
   team_parallel: true
   deliverables:
     # Agent A (risk)
-    - "[ ] Risk Analyst agent: forge_sensitivity on key assumptions + forge_break_even for margin of safety"
-    - "[ ] Fallback: Monte Carlo via forge CLI subprocess (forge simulate -- not in MCP)"
+    - "[ ] Risk Analyst agent: forge_simulate (Monte Carlo) + forge_tornado + forge_break_even for margin of safety"
     # Agent B (scenarios)
-    - "[ ] Scenario Planner agent: construct bull/base/bear YAML variants -> forge_compare"
+    - "[ ] Scenario Planner agent: forge_scenarios (bull/base/bear) + forge_compare"
     - "[ ] Scenario narratives from guidance language (Claude reasoning)"
     # Lead (graph + routing)
     - "[ ] LangGraph graph: Research -> Modeler -> Risk Analyst -> Scenario Planner -> Synthesizer"
@@ -34,6 +33,15 @@ next:
       - "[ ] README rewritten: architecture diagram, real example output, LangSmith screenshot"
 
 released:
+  - version: "0.2.2"
+    date: "2026-02-22"
+    summary: "Forge MCP tool list updated from 10 to 20; no more CLI subprocess fallback"
+    deliverables:
+      - "[x] FORGE_TOOL_NAMES expanded: 7 analysis engines + 3 discovery tools (20 total)"
+      - "[x] Modeler agent updated for Forge structured JSON responses (tables_valid/scalars_valid, scalars dict)"
+      - "[x] ADR-002 updated: CLI subprocess fallback removed — all Forge tools now via MCP"
+      - "[x] v0.3.0 roadmap updated: Risk Analyst + Scenario Planner use forge_simulate/forge_tornado/forge_scenarios via MCP"
+
   - version: "0.2.1"
     date: "2026-02-22"
     summary: "Ref MCP migration -- subprocess wrapper replaced with native MCP client"
@@ -84,5 +92,4 @@ backlog:
   - "Comparative analysis: multiple companies in same sector"
   - "PDF report generation (WeasyPrint or similar)"
   - "Expose Sentinel itself as MCP server (meta: MCP tools calling MCP tools)"
-  - "Add Monte Carlo + tornado to Forge MCP server (upstream PR)"
   - "Docker containerization for reproducible demos"

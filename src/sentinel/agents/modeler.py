@@ -143,7 +143,8 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
             val_result = await validate.ainvoke({"file_path": str(model_path)})
             val_text = _text_from(val_result)
 
-            if "error" not in val_text.lower() or "successful" in val_text.lower():
+            val_data = json.loads(val_text)
+            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
                 logger.info(
                     "Modeler agent: validation passed (attempt %d)",
                     attempt,
@@ -223,17 +224,9 @@ def _cleanup(path: Path) -> None:
 
 
 def _parse_calc_results(text: str) -> dict[str, Any]:
-    """Parse Forge calculation output into a structured dict."""
-    results: dict[str, Any] = {}
-    for raw_line in text.splitlines():
-        stripped = raw_line.strip()
-        if "=" in stripped and not stripped.startswith("#"):
-            parts = stripped.split("=", 1)
-            if len(parts) == 2:  # noqa: PLR2004
-                key = parts[0].strip()
-                value_str = parts[1].strip()
-                try:
-                    results[key] = float(value_str)
-                except ValueError:
-                    results[key] = value_str
-    return results
+    """Parse Forge calculation output into a structured dict.
+
+    Forge MCP returns JSON with ``scalars`` and ``tables`` keys.
+    """
+    data = json.loads(text)
+    return dict(data.get("scalars", {}))

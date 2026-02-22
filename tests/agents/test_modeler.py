@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -43,24 +44,23 @@ def test_write_temp_yaml_creates_file() -> None:
 
 
 def test_parse_calc_results_extracts_scalars() -> None:
-    """Verify calculation output is parsed into key-value pairs."""
-    text = (
-        "Calculation Results:\n"
-        "   outputs.margin = 0.4\n"
-        "   inputs.revenue = 1000000\n"
-        "   # comment = ignored\n"
+    """Verify calculation JSON is parsed into key-value pairs."""
+    text = json.dumps(
+        {
+            "scalars": {"outputs.margin": 0.4, "inputs.revenue": 1000000},
+            "tables": {},
+        },
     )
     results = _parse_calc_results(text)
     assert results["outputs.margin"] == EXPECTED_MARGIN
     assert results["inputs.revenue"] == EXPECTED_REVENUE
-    assert "comment" not in results
 
 
-def test_parse_calc_results_handles_non_numeric() -> None:
-    """Verify non-numeric values are stored as strings."""
-    text = "   name = SaaS Subscription\n"
+def test_parse_calc_results_handles_empty_scalars() -> None:
+    """Verify empty scalars returns empty dict."""
+    text = json.dumps({"scalars": {}, "tables": {}})
     results = _parse_calc_results(text)
-    assert results["name"] == "SaaS Subscription"
+    assert results == {}
 
 
 async def test_modeler_node_skips_on_research_error() -> None:
@@ -92,9 +92,22 @@ async def test_modeler_node_generates_and_calculates() -> None:
     mock_llm_response = AsyncMock()
     mock_llm_response.content = fake_yaml
 
-    mock_validate_result = [{"type": "text", "text": "Validation successful"}]
+    mock_validate_result = [
+        {
+            "type": "text",
+            "text": json.dumps({"tables_valid": True, "scalars_valid": True, "mismatches": []}),
+        },
+    ]
     mock_calc_result = [
-        {"type": "text", "text": "outputs.gross_profit = 52800\noutputs.margin = 0.557"},
+        {
+            "type": "text",
+            "text": json.dumps(
+                {
+                    "scalars": {"outputs.gross_profit": 52800, "outputs.margin": 0.557},
+                    "tables": {},
+                },
+            ),
+        },
     ]
 
     mock_validate = MagicMock()
@@ -146,15 +159,38 @@ async def test_modeler_node_retries_on_validation_failure() -> None:
     mock_validate.name = "forge_validate"
     mock_validate.ainvoke = AsyncMock(
         side_effect=[
-            [{"type": "text", "text": "Error: invalid field"}],
-            [{"type": "text", "text": "Validation successful"}],
+            [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "tables_valid": False,
+                            "scalars_valid": False,
+                            "mismatches": [{"field": "x", "error": "invalid field"}],
+                        },
+                    ),
+                },
+            ],
+            [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {"tables_valid": True, "scalars_valid": True, "mismatches": []},
+                    ),
+                },
+            ],
         ],
     )
 
     mock_calculate = MagicMock()
     mock_calculate.name = "forge_calculate"
     mock_calculate.ainvoke = AsyncMock(
-        return_value=[{"type": "text", "text": "inputs.revenue = 100"}],
+        return_value=[
+            {
+                "type": "text",
+                "text": json.dumps({"scalars": {"inputs.revenue": 100}, "tables": {}}),
+            },
+        ],
     )
 
     with (
@@ -190,7 +226,18 @@ async def test_modeler_node_exhausts_retries() -> None:
     mock_validate = MagicMock()
     mock_validate.name = "forge_validate"
     mock_validate.ainvoke = AsyncMock(
-        return_value=[{"type": "text", "text": "Error: always fails"}],
+        return_value=[
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "tables_valid": False,
+                        "scalars_valid": False,
+                        "mismatches": [{"field": "x", "error": "always fails"}],
+                    },
+                ),
+            },
+        ],
     )
 
     mock_calculate = MagicMock()

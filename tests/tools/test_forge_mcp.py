@@ -1,5 +1,6 @@
 """Tests for Forge MCP client."""
 
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,7 +19,7 @@ from sentinel.tools.forge_mcp import (
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SIMPLE_MODEL = FIXTURES / "simple_model.yaml"
 
-EXPECTED_TOOL_COUNT = 10
+EXPECTED_TOOL_COUNT = 20
 
 
 def _text_from(result: list[dict[str, Any]]) -> str:
@@ -91,7 +92,7 @@ def test_log_discovered_warns_on_missing_tools(caplog: pytest.LogCaptureFixture)
 
 @pytest.mark.integration
 async def test_get_forge_tools_discovers_all() -> None:
-    """Verify get_forge_tools() returns all 10 Forge tools."""
+    """Verify get_forge_tools() returns all 20 Forge tools."""
     tools = await get_forge_tools()
     discovered = {t.name for t in tools}
     assert discovered == FORGE_TOOL_NAMES
@@ -99,7 +100,7 @@ async def test_get_forge_tools_discovers_all() -> None:
 
 @pytest.mark.integration
 async def test_forge_session_discovers_all_tools() -> None:
-    """Verify forge_session() context manager returns all 10 tools."""
+    """Verify forge_session() context manager returns all 20 tools."""
     async with forge_session() as tools:
         discovered = {t.name for t in tools}
         assert discovered == FORGE_TOOL_NAMES
@@ -111,7 +112,9 @@ async def test_forge_validate_accepts_valid_model() -> None:
     tools = await get_forge_tools()
     validate = next(t for t in tools if t.name == "forge_validate")
     result = await validate.ainvoke({"file_path": str(SIMPLE_MODEL)})
-    assert "successful" in _text_from(result).lower()
+    parsed = json.loads(_text_from(result))
+    assert parsed["tables_valid"] is True
+    assert parsed["scalars_valid"] is True
 
 
 @pytest.mark.integration
@@ -125,4 +128,6 @@ async def test_forge_calculate_dry_run() -> None:
             "dry_run": True,
         },
     )
-    assert "completed" in _text_from(result).lower()
+    parsed = json.loads(_text_from(result))
+    assert parsed["dry_run"] is True
+    assert "scalars" in parsed
