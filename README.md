@@ -4,7 +4,7 @@
 
 LangGraph agents fetch live earnings data, build financial models, run Monte Carlo simulations, and produce investment-grade analysis briefs — with zero hallucinated numbers.
 
-```
+```text
 "Analyze Apple's latest earnings"
 
   Research Agent ──► Ref (fetch earnings release)
@@ -23,7 +23,7 @@ LangGraph agents fetch live earnings data, build financial models, run Monte Car
 ## Architecture
 
 | Agent | Role | Tools |
-|-------|------|-------|
+| ----- | ---- | ----- |
 | **Research** | Fetches earnings press release, extracts revenue, margins, guidance | [Ref](https://github.com/mollendorff-ai/ref) |
 | **Modeler** | Writes Forge YAML model: 5-year DCF with assumptions from extracted data | [Forge](https://github.com/mollendorff-ai/forge) validate + calculate |
 | **Risk Analyst** | Adds Monte Carlo distributions to uncertain inputs, identifies top risk drivers | Forge simulate + tornado |
@@ -44,8 +44,9 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 ## Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Orchestration | LangGraph (Python) |
+| ----- | ---------- |
+| Orchestration | LangGraph (Python) — [why Python?](docs/adr/001-python-over-typescript.md) |
+| Tracing | LangSmith |
 | Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) (Rust CLI, 173 Excel functions, 7 analytical engines) |
 | Data ingestion | [Ref](https://github.com/mollendorff-ai/ref) (Rust CLI, headless Chrome, structured JSON) |
 | LLM | Claude / GPT (model-agnostic) |

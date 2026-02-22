@@ -1,0 +1,22 @@
+identity:
+  name: "sentinel"
+  type: python
+
+description: >
+  Multi-agent earnings analysis. LangGraph agents fetch live data via ref,
+  build financial models via forge, run simulations, and produce
+  investment-grade briefs with zero hallucinated numbers.
+
+stack:
+  - python
+  - langgraph
+  - langchain
+  - langsmith
+  - forge
+  - ref
+
+conventions:
+  - "LangGraph for agent orchestration, LangChain for components only"
+  - "forge CLI for all financial calculations (no in-agent math)"
+  - "ref fetch for all web retrieval (never WebSearch/WebFetch)"
+  - "LangSmith tracing enabled from day one"

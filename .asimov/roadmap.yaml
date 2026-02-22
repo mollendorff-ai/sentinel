@@ -1,0 +1,12 @@
+current:
+  version: "0.1.0"
+  status: in_progress
+  summary: "Initial setup"
+  deliverables:
+    - "Define project goals and project.yaml"
+    - "Set up Python project (pyproject.toml, venv)"
+    - "Install langgraph, langchain, langsmith dependencies"
+    - "Create forge CLI tool wrapper"
+    - "Create ref CLI tool wrapper"
+    - "Wire LangGraph agent with both tools"
+    - "Enable LangSmith tracing"

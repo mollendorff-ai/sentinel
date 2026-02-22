@@ -1,0 +1,16 @@
+{
+  "philosophy": "Human-readable, well-structured, consistently formatted code",
+  "rfc2119": {
+    "MUST": "Required - always follow",
+    "SHOULD": "Recommended - follow unless justified exception",
+    "MAY": "Optional - no strong preference"
+  },
+  "principles": [
+    "Code is for humans first, machines second",
+    "Tests serve as executable documentation",
+    "No warnings, no exceptions",
+    "Quality over speed - avoid incomplete implementations",
+    "Target 100% test coverage where practical"
+  ],
+  "rule": "MUST write human-readable, well-structured, consistently formatted code. Code is for humans first. Tests serve as executable documentation. No warnings, no exceptions. Quality over speed. Target 100% test coverage where practical. RFC 2119 keywords: MUST = required, SHOULD = recommended unless justified, MAY = optional."
+}
