@@ -1,8 +1,9 @@
 current:
   version: "0.4.0"
   status: pending
-  summary: "Persistence + observability + polish"
+  summary: "Persistence + observability + developer experience"
   deliverables:
+    - "[ ] Makefile: setup, test, lint, demo, demo-quick, clean, help targets"
     - "[ ] SQLite checkpointer (replace MemorySaver) -- resume interrupted runs"
     - "[ ] LangSmith traces with meaningful run names and metadata tags"
     - "[ ] Structured output dir: JSON + markdown brief + Forge YAML model + sensitivity tables"

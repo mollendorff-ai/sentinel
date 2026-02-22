@@ -1,1 +1,1 @@
-"""Sentinel agents — LangGraph multi-agent orchestration (v0.2.0)."""
+"""Sentinel agents — LangGraph multi-agent orchestration (v0.3.0)."""
