@@ -3,6 +3,23 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] - 2026-02-22
+
+Showcase: C4 architecture diagram, dynamic badges, README rewrite.
+
+### Added
+
+- **C4 Level 2 container diagram** (Mermaid `C4Container`): 5 agents, Forge/Ref MCP servers, LLM provider, LangSmith, SQLite checkpointer; renders natively on GitHub
+- **Dynamic CI badges**: coverage percentage and test count updated on every push to main via `schneegans/dynamic-badges-action` + GitHub Gist
+- **Ecosystem section** in README: Sentinel, Forge, and Ref framed as a unified MCP-connected platform
+- **Roadmap table** in README: version history with planned v0.6.0 (RAG/Qdrant) and v0.7.0 (human-in-the-loop)
+
+### Changed
+
+- **README** rewritten: C4 diagram replaces flow chart, ecosystem section, roadmap table, Forge/Ref described as "our MCP servers", stack table updated
+- **CI workflow** (`.github/workflows/ci.yml`): added `coverage` job (metrics extraction) and `badges` job (gist update, main push only)
+- **GitHub org profile** (`mollendorff-ai/.github`): Sentinel/Forge/Ref descriptions updated to highlight MCP ecosystem
+
 ## [0.4.0] - 2026-02-22
 
 Persistence + observability + developer experience.

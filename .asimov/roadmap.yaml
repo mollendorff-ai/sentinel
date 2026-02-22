@@ -1,22 +1,14 @@
 current:
-  version: "0.5.0"
-  status: in-progress
-  summary: "Showcase -- C4 diagram + dynamic badges + README rewrite"
+  version: "0.6.0"
+  status: pending
+  summary: "RAG -- historical earnings for trend analysis"
   deliverables:
-    - "[x] C4 Level 2 container diagram (Mermaid C4Container in README)"
-    - "[x] Dynamic CI badges: coverage + test count via gist (schneegans/dynamic-badges-action)"
-    - "[x] README rewritten: C4 diagram, ecosystem section, roadmap table, Forge/Ref as our MCP servers"
-    - "[ ] asciinema or GIF recording of end-to-end run"
-    - "[ ] C4 diagram added to GitHub org profile (mollendorff-ai/.github)"
+    - "[ ] Qdrant vector store with historical earnings data"
+    - "[ ] Research agent queries past quarters for trend comparison"
+    - "[ ] Synthesizer uses historical context for richer analysis"
+    - "[ ] Demo recording (asciinema or GIF) of end-to-end run"
 
 next:
-  - version: "0.6.0"
-    summary: "RAG -- historical earnings for trend analysis"
-    deliverables:
-      - "[ ] Qdrant vector store with historical earnings data"
-      - "[ ] Research agent queries past quarters for trend comparison"
-      - "[ ] Synthesizer uses historical context for richer analysis"
-
   - version: "0.7.0"
     summary: "Human-in-the-loop + streaming"
     deliverables:
@@ -24,6 +16,15 @@ next:
       - "[ ] Real-time agent progress to terminal (LangGraph streaming API)"
 
 released:
+  - version: "0.5.0"
+    date: "2026-02-22"
+    summary: "Showcase -- C4 diagram + dynamic badges + README rewrite"
+    deliverables:
+      - "[x] C4 Level 2 container diagram (Mermaid C4Container in README)"
+      - "[x] Dynamic CI badges: coverage + test count via gist (schneegans/dynamic-badges-action)"
+      - "[x] README rewritten: C4 diagram, ecosystem section, roadmap table, Forge/Ref as our MCP servers"
+      - "[x] GitHub org profile updated: Sentinel/Forge/Ref descriptions highlight MCP ecosystem"
+
   - version: "0.4.0"
     date: "2026-02-22"
     summary: "Persistence + observability + developer experience"

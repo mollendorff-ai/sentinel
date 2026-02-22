@@ -109,8 +109,8 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | v0.2.0 | 3-agent pipeline (Research, Modeler, Synthesizer) | Shipped |
 | v0.3.0 | 5-agent pipeline, conditional routing, Monte Carlo | Shipped |
 | v0.4.0 | Persistence, observability, multi-ticker batch, error handling | Shipped |
-| v0.5.0 | C4 architecture diagram, dynamic badges, README showcase | Current |
-| v0.6.0 | RAG with Qdrant -- historical earnings for trend analysis | Planned |
+| v0.5.0 | C4 architecture diagram, dynamic badges, README showcase | Shipped |
+| v0.6.0 | RAG with Qdrant -- historical earnings for trend analysis | Current |
 | v0.7.0 | Human-in-the-loop approval gate, real-time streaming | Planned |
 
 See [CHANGELOG](CHANGELOG.md) for details.
