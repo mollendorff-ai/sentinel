@@ -1,0 +1,75 @@
+_forge_version: "5.0.0"
+
+inputs:
+  revenue:
+    value: 94800
+    formula: null
+  cost_of_revenue:
+    value: 42000
+    formula: null
+  operating_expenses:
+    value: 14500
+    formula: null
+
+outputs:
+  gross_profit:
+    value: null
+    formula: "=inputs.revenue - inputs.cost_of_revenue"
+  operating_income:
+    value: null
+    formula: "=outputs.gross_profit - inputs.operating_expenses"
+  gross_margin:
+    value: null
+    formula: "=outputs.gross_profit / inputs.revenue"
+
+monte_carlo:
+  iterations: 1000
+  distributions:
+    inputs.revenue:
+      type: MC.Normal
+      mean: 94800
+      std_dev: 9480
+    inputs.cost_of_revenue:
+      type: MC.Normal
+      mean: 42000
+      std_dev: 4200
+  outputs:
+    - outputs.operating_income
+    - outputs.gross_profit
+
+tornado:
+  output: outputs.operating_income
+  base_values:
+    inputs.revenue: 94800
+    inputs.cost_of_revenue: 42000
+    inputs.operating_expenses: 14500
+  inputs:
+    inputs.revenue:
+      low: 85320
+      high: 104280
+    inputs.cost_of_revenue:
+      low: 37800
+      high: 46200
+    inputs.operating_expenses:
+      low: 13050
+      high: 15950
+
+scenarios:
+  - name: Bull
+    probability: 0.25
+    scalars:
+      inputs.revenue: 108120
+      inputs.cost_of_revenue: 46200
+      inputs.operating_expenses: 14500
+  - name: Base
+    probability: 0.50
+    scalars:
+      inputs.revenue: 94800
+      inputs.cost_of_revenue: 42000
+      inputs.operating_expenses: 14500
+  - name: Bear
+    probability: 0.25
+    scalars:
+      inputs.revenue: 80580
+      inputs.cost_of_revenue: 37800
+      inputs.operating_expenses: 15950

@@ -3,6 +3,27 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-02-22
+
+Risk + scenarios: full 5-agent pipeline with conditional routing.
+
+### Added
+
+- **Risk Analyst agent** (`sentinel.agents.risk_analyst`): augments Forge YAML with `monte_carlo` + `tornado` sections via Claude; runs `forge_simulate` (Monte Carlo P10/P50/P90), `forge_tornado` (sensitivity), `forge_break_even`; self-correction loop for validation
+- **Scenario Planner agent** (`sentinel.agents.scenario_planner`): augments YAML with `scenarios` section (Bull/Base/Bear); runs `forge_scenarios`, `forge_compare`, `forge_break_even`; builds on Risk Analyst's augmented YAML when available
+- **Conditional routing**: `--quick` CLI flag skips Risk Analyst + Scenario Planner via LangGraph `add_conditional_edges`
+- **ADR-006:** Five-Agent Pipeline with Conditional Routing (accepted)
+- **Test fixture:** `risk_model.yaml` — Forge v5.0.0 model with monte_carlo, tornado, and scenarios sections
+
+### Changed
+
+- **Pipeline** (`sentinel.graph.pipeline`): 5 nodes with conditional edge after Modeler; `_route_after_modeler` checks `quick` flag
+- **State schema** (`sentinel.graph.state`): added `quick`, `risk_analysis`, `scenario_analysis` fields
+- **Synthesizer agent** (`sentinel.agents.synthesizer`): conditionally injects risk + scenario data; adds Risk Profile and Scenario Comparison sections; word range 400-700 in full mode
+- **CLI** (`sentinel.__main__`): `--quick` flag, mode display (full/quick), version v0.3.0
+- **LLM default** (`sentinel.llm`): Anthropic default model switched from `claude-sonnet-4-20250514` to `claude-opus-4-6`
+- **Unit tests:** 77 tests at 100% coverage (was 48)
+
 ## [0.2.2] - 2026-02-22
 
 Forge MCP tool list updated from 10 to 20. No more CLI subprocess fallback.

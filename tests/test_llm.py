@@ -30,7 +30,7 @@ def test_default_provider_is_anthropic() -> None:
         get_llm()
 
     mod.ChatAnthropic.assert_called_once_with(
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         temperature=0,
         max_tokens=DEFAULT_MAX_TOKENS,
     )
@@ -116,7 +116,7 @@ def test_max_tokens_passthrough() -> None:
         get_llm(max_tokens=CUSTOM_MAX_TOKENS)
 
     mod.ChatAnthropic.assert_called_once_with(
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         temperature=0,
         max_tokens=CUSTOM_MAX_TOKENS,
     )

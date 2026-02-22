@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PROVIDER_DEFAULTS: dict[str, tuple[str, str]] = {
-    "anthropic": ("langchain_anthropic", "claude-sonnet-4-20250514"),
+    "anthropic": ("langchain_anthropic", "claude-opus-4-6"),
     "openai": ("langchain_openai", "gpt-4o-mini"),
     "google": ("langchain_google_genai", "gemini-2.5-flash"),
     "groq": ("langchain_groq", "llama-3.3-70b-versatile"),

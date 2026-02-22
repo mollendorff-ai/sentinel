@@ -28,3 +28,12 @@ class SentinelState(TypedDict, total=False):
 
     brief: str
     """Executive brief produced by the Synthesizer agent."""
+
+    quick: bool
+    """When True, skip Risk Analyst and Scenario Planner nodes."""
+
+    risk_analysis: dict[str, Any]
+    """Monte Carlo simulation, tornado sensitivity, and break-even results."""
+
+    scenario_analysis: dict[str, Any]
+    """Bull / Base / Bear scenario projection results."""

@@ -84,9 +84,9 @@ pytest
 
 ## Status
 
-**v0.2.2** -- Core 3-agent pipeline (Research -> Modeler -> Synthesizer). LLM-agnostic -- any LangChain-compatible provider via env var. Forge + Ref both via MCP. 48 tests, 100% coverage.
+**v0.3.0** -- Full 5-agent pipeline (Research -> Modeler -> Risk Analyst -> Scenario Planner -> Synthesizer). Monte Carlo, tornado sensitivity, bull/base/bear scenarios. `--quick` flag for fast 3-agent mode. Default LLM: Opus 4.6. 77 tests, 100% coverage.
 
-Next: **v0.3.0** -- Risk Analyst + Scenario Planner agents, full 5-agent pipeline with conditional routing.
+Next: **v0.4.0** -- Persistence + observability + polish.
 
 See [CHANGELOG](CHANGELOG.md) and [roadmap](.asimov/roadmap.yaml) for details.
 
