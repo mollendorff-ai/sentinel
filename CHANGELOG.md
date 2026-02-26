@@ -3,6 +3,27 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] - 2026-02-25
+
+RAG with Qdrant — historical earnings for trend analysis.
+
+### Added
+
+- **Qdrant RAG layer** (`sentinel.rag.store`): `create_store()` factory opens local on-disk Qdrant at `.sentinel/qdrant/`; `ingest()` upserts a quarter's earnings using stable `uuid5(ticker:period)` point IDs (idempotent); `retrieve()` queries the top-4 most relevant past quarters via fastembed semantic search, excluding the current period
+- **Retriever agent** (`sentinel.agents.retriever`): new LangGraph node between Research and Modeler; queries Qdrant for historical quarters; graceful degradation — returns `{"historical_context": []}` on first run or Qdrant error, never blocks the pipeline
+- **Historical Trend Analysis section** in Synthesizer brief: when `historical_context` is non-empty the Synthesizer prompt includes past quarters' financials and produces a trend section covering revenue trajectory, margin expansion/compression, and EPS progression
+- **Post-run ingest** in CLI (`__main__.py`): after each successful pipeline run, `raw_data` is ingested into Qdrant so subsequent runs for the same ticker accumulate historical context
+- **ADR-009:** Qdrant RAG over local fastembed for zero-config historical earnings retrieval (accepted)
+- **`SENTINEL_QDRANT_PATH`** env var: configures Qdrant persistence path (default: `.sentinel/qdrant/`)
+- `qdrant-client[fastembed]>=1.9` runtime dependency (embedding model downloaded once on first use)
+
+### Changed
+
+- **Graph topology**: 5-node pipeline extended to 6 nodes — `research → retriever → modeler → [risk_analyst → scenario_planner] → synthesizer`
+- **`SentinelState`**: added `historical_context: list[dict[str, Any]]` field
+- **Synthesizer word range**: expands to 400–700 words when historical context is present (alongside existing risk/scenario expansion)
+- **Version**: bumped to 0.6.0
+
 ## [0.5.0] - 2026-02-22
 
 Showcase: C4 architecture diagram, dynamic badges, README rewrite.

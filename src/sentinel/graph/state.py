@@ -37,3 +37,11 @@ class SentinelState(TypedDict, total=False):
 
     scenario_analysis: dict[str, Any]
     """Bull / Base / Bear scenario projection results."""
+
+    historical_context: list[dict[str, Any]]
+    """Historical earnings records retrieved from Qdrant for trend analysis.
+
+    Each element is a payload dict from a past quarter's earnings record
+    (ticker, period, revenue, margins, etc.).  Empty list when no history
+    is available (first run or Qdrant unavailable).
+    """

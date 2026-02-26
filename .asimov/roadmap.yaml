@@ -3,9 +3,9 @@ current:
   status: pending
   summary: "RAG -- historical earnings for trend analysis"
   deliverables:
-    - "[ ] Qdrant vector store with historical earnings data"
-    - "[ ] Research agent queries past quarters for trend comparison"
-    - "[ ] Synthesizer uses historical context for richer analysis"
+    - "[x] Qdrant vector store with historical earnings data"
+    - "[x] Research agent queries past quarters for trend comparison"
+    - "[x] Synthesizer uses historical context for richer analysis"
     - "[ ] Demo recording (asciinema or GIF) of end-to-end run"
 
 next:

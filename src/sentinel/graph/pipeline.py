@@ -1,4 +1,4 @@
-"""LangGraph pipeline — wires the 5-agent earnings-analysis graph."""
+"""LangGraph pipeline — wires the 6-agent earnings-analysis graph."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 from sentinel.agents.modeler import modeler_node
 from sentinel.agents.research import research_node
+from sentinel.agents.retriever import retriever_node
 from sentinel.agents.risk_analyst import risk_analyst_node
 from sentinel.agents.scenario_planner import scenario_planner_node
 from sentinel.agents.synthesizer import synthesizer_node
@@ -30,8 +31,8 @@ def build_graph() -> StateGraph:
 
     Graph topology::
 
-        START → research → modeler ──┬──→ risk_analyst → scenario_planner ──┬──→ synthesizer → END
-                                     └─── (quick=True) ────────────────────┘
+        START → research → retriever → modeler ──┬──→ risk_analyst → scenario_planner ──┬──→ synthesizer → END
+                                                  └─── (quick=True) ────────────────────┘
 
     Returns
     -------
@@ -42,13 +43,15 @@ def build_graph() -> StateGraph:
     graph = StateGraph(SentinelState)
 
     graph.add_node("research", research_node)
+    graph.add_node("retriever", retriever_node)
     graph.add_node("modeler", modeler_node)
     graph.add_node("risk_analyst", risk_analyst_node)
     graph.add_node("scenario_planner", scenario_planner_node)
     graph.add_node("synthesizer", synthesizer_node)
 
     graph.add_edge(START, "research")
-    graph.add_edge("research", "modeler")
+    graph.add_edge("research", "retriever")
+    graph.add_edge("retriever", "modeler")
     graph.add_conditional_edges(
         "modeler",
         _route_after_modeler,

@@ -12,8 +12,9 @@ from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
 from sentinel.llm import PROVIDER_DEFAULTS
 from sentinel.output import write_run_output
+from sentinel.rag.store import create_store, ingest
 
-VERSION = "0.4.0"
+VERSION = "0.6.0"
 
 
 async def _run_all(
@@ -53,6 +54,18 @@ async def _run_all(
             )
 
             run_dir = write_run_output(result)
+
+            # Ingest current raw_data into Qdrant for future trend analysis
+            raw_data = result.get("raw_data", {})
+            if raw_data and "error" not in raw_data:
+                try:
+                    store = create_store()
+                    ingest(store, raw_data)
+                except Exception:
+                    logging.getLogger(__name__).warning(
+                        "Sentinel: Qdrant ingest failed for %s (non-fatal)", ticker
+                    )
+
             brief = result.get("brief", "No brief generated.")
             sys.stdout.write(f"{brief}\n")
             sys.stdout.write(f"Output: {run_dir}\n\n")

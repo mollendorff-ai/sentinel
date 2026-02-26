@@ -26,6 +26,7 @@ FORGE CALCULATION RESULTS (deterministic -- these are the authoritative numbers)
 {forge_results_json}
 {risk_section}\
 {scenario_section}\
+{history_section}\
 
 Write a concise executive brief ({word_range} words) with these sections:
 
@@ -63,6 +64,17 @@ SCENARIO ANALYSIS (Bull / Base / Bear):
 _SCENARIO_SECTIONS = """\
 6. **Scenario Comparison** -- Bull/base/bear outcomes with probabilities. \
 Expected value across scenarios. Key break-even thresholds.
+"""
+
+_HISTORY_DATA = """
+HISTORICAL EARNINGS (past quarters from RAG store, most relevant first):
+{history_json}
+"""
+
+_HISTORY_SECTIONS = """\
+{section_num}. **Historical Trend Analysis** -- Revenue trajectory over prior quarters. \
+Margin expansion or compression trend. EPS progression. Year-over-year comparison \
+with current quarter vs. prior year same period if available.
 """
 
 
@@ -125,7 +137,18 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         )
         extra_sections += _SCENARIO_SECTIONS
 
-    word_range = "400-700" if (has_risk or has_scenarios) else "300-500"
+    historical_context = state.get("historical_context", [])
+    has_history = bool(historical_context)
+
+    history_section = ""
+    if has_history:
+        history_section = _HISTORY_DATA.format(
+            history_json=json.dumps(historical_context, indent=2),
+        )
+        section_num = 4 + int(has_risk) + int(has_scenarios)
+        extra_sections += _HISTORY_SECTIONS.format(section_num=section_num)
+
+    word_range = "400-700" if (has_risk or has_scenarios or has_history) else "300-500"
 
     # Remove raw_output from forge_results for the prompt (verbose)
     forge_clean = {k: v for k, v in forge_results.items() if k != "raw_output"}
@@ -138,6 +161,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         forge_results_json=json.dumps(forge_clean, indent=2),
         risk_section=risk_section,
         scenario_section=scenario_section,
+        history_section=history_section,
         extra_sections=extra_sections,
         word_range=word_range,
     )

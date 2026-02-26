@@ -10,14 +10,15 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from sentinel.graph.pipeline import _route_after_modeler, build_graph, compile_graph
 
 EXPECTED_REVENUE = 1000
-EXPECTED_NODE_COUNT = 5
+EXPECTED_NODE_COUNT = 6
 
 
 def test_build_graph_has_expected_nodes() -> None:
-    """Verify the graph contains all five agent nodes."""
+    """Verify the graph contains all six agent nodes."""
     graph = build_graph()
     node_names = set(graph.nodes)
     assert "research" in node_names
+    assert "retriever" in node_names
     assert "modeler" in node_names
     assert "risk_analyst" in node_names
     assert "scenario_planner" in node_names
@@ -47,7 +48,7 @@ def test_route_after_modeler_returns_synthesizer_when_quick() -> None:
 
 
 async def test_pipeline_executes_all_nodes_full_mode() -> None:
-    """Verify the full pipeline calls all 5 nodes when quick=False."""
+    """Verify the full pipeline calls all 6 nodes when quick=False."""
     mock_research_result: dict[str, Any] = {
         "raw_data": {"ticker": "TEST", "revenue": 1000},
     }
@@ -65,12 +66,21 @@ async def test_pipeline_executes_all_nodes_full_mode() -> None:
         "brief": "Test brief.",
     }
 
+    mock_retriever_result: dict[str, Any] = {
+        "historical_context": [],
+    }
+
     with (
         patch(
             "sentinel.graph.pipeline.research_node",
             new_callable=AsyncMock,
             return_value=mock_research_result,
         ) as mock_research,
+        patch(
+            "sentinel.graph.pipeline.retriever_node",
+            new_callable=AsyncMock,
+            return_value=mock_retriever_result,
+        ) as mock_retriever,
         patch(
             "sentinel.graph.pipeline.modeler_node",
             new_callable=AsyncMock,
@@ -96,6 +106,7 @@ async def test_pipeline_executes_all_nodes_full_mode() -> None:
         result = await compiled.ainvoke({"ticker": "TEST"})
 
     mock_research.assert_called_once()
+    mock_retriever.assert_called_once()
     mock_modeler.assert_called_once()
     mock_risk.assert_called_once()
     mock_scenario.assert_called_once()
@@ -123,6 +134,11 @@ async def test_pipeline_skips_risk_and_scenario_in_quick_mode() -> None:
             "sentinel.graph.pipeline.research_node",
             new_callable=AsyncMock,
             return_value=mock_research_result,
+        ),
+        patch(
+            "sentinel.graph.pipeline.retriever_node",
+            new_callable=AsyncMock,
+            return_value={"historical_context": []},
         ),
         patch(
             "sentinel.graph.pipeline.modeler_node",

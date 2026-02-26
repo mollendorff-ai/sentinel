@@ -51,3 +51,18 @@ def test_state_accepts_v030_fields() -> None:
     assert full["quick"] is False
     assert "monte_carlo" in full["risk_analysis"]
     assert "bull" in full["scenario_analysis"]
+
+
+def test_state_accepts_v060_fields() -> None:
+    """Verify SentinelState accepts v0.6.0 historical_context field."""
+    state: SentinelState = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "historical_context": [
+            {"ticker": "AAPL", "period": "Q4 2025", "revenue": 90000},
+            {"ticker": "AAPL", "period": "Q3 2025", "revenue": 85000},
+        ],
+    }
+    assert state["ticker"] == "AAPL"
+    assert len(state["historical_context"]) == 2  # noqa: PLR2004
+    assert state["historical_context"][0]["period"] == "Q4 2025"

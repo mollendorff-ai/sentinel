@@ -14,10 +14,12 @@ stack:
   - langsmith
   - forge
   - ref
+  - qdrant
 
 conventions:
   - "LangGraph for agent orchestration, LangChain for components only"
   - "Forge via MCP (langchain-mcp-adapters, stdio transport) for financial calculations — no in-agent math"
   - "Ref via MCP (langchain-mcp-adapters, stdio transport) for all web retrieval (never WebSearch/WebFetch)"
+  - "Qdrant via qdrant-client[fastembed] for historical earnings RAG — local on-disk, no API key"
   - "LangSmith tracing enabled from day one"
   - "Sibling repos for reference: ../forge/ (YAML schema, MCP tool defs, examples), ../ref/ (CLI usage)"

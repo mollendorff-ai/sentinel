@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from sentinel.agents.synthesizer import synthesizer_node
 
@@ -282,3 +282,60 @@ async def test_synthesizer_node_handles_llm_exception() -> None:
 
     assert "Analysis incomplete for AAPL" in result["brief"]
     assert "LLM call failed" in result["brief"]
+
+
+async def test_synthesizer_includes_history_in_prompt() -> None:
+    """Verify historical context is injected into the prompt when present."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"period": "Q1 2026"},
+        "forge_results": {"outputs.margin": 0.5},
+        "historical_context": [
+            {"ticker": "AAPL", "period": "Q4 2025", "revenue": 90000},
+        ],
+    }
+    mock_response = MagicMock()
+    mock_response.content = "Brief with history."
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+    with patch("sentinel.agents.synthesizer.get_llm", return_value=mock_llm):
+        await synthesizer_node(state)
+    prompt = mock_llm.ainvoke.call_args[0][0]
+    assert "HISTORICAL EARNINGS" in prompt
+    assert "Q4 2025" in prompt
+
+
+async def test_synthesizer_omits_history_section_when_empty() -> None:
+    """Verify historical section is absent when historical_context is empty."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"period": "Q1 2026"},
+        "forge_results": {"outputs.margin": 0.5},
+        "historical_context": [],
+    }
+    mock_response = MagicMock()
+    mock_response.content = "Brief without history."
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+    with patch("sentinel.agents.synthesizer.get_llm", return_value=mock_llm):
+        await synthesizer_node(state)
+    prompt = mock_llm.ainvoke.call_args[0][0]
+    assert "HISTORICAL EARNINGS" not in prompt
+
+
+async def test_synthesizer_uses_long_word_range_with_history() -> None:
+    """Verify 400-700 word range when historical_context is non-empty."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"period": "Q1 2026"},
+        "forge_results": {"outputs.margin": 0.5},
+        "historical_context": [{"ticker": "AAPL", "period": "Q4 2025"}],
+    }
+    mock_response = MagicMock()
+    mock_response.content = "Longer brief."
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+    with patch("sentinel.agents.synthesizer.get_llm", return_value=mock_llm):
+        await synthesizer_node(state)
+    prompt = mock_llm.ainvoke.call_args[0][0]
+    assert "400-700" in prompt
