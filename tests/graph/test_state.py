@@ -66,3 +66,14 @@ def test_state_accepts_v060_fields() -> None:
     assert state["ticker"] == "AAPL"
     assert len(state["historical_context"]) == 2  # noqa: PLR2004
     assert state["historical_context"][0]["period"] == "Q4 2025"
+
+
+def test_state_accepts_v070_fields() -> None:
+    """Verify SentinelState accepts v0.7.0 analyst_feedback field."""
+    state: SentinelState = {
+        "ticker": "AAPL",
+        "raw_data": {"revenue": 94800},
+        "analyst_feedback": "Emphasize margin compression and guidance revision.",
+    }
+    assert state["ticker"] == "AAPL"
+    assert state["analyst_feedback"] == "Emphasize margin compression and guidance revision."

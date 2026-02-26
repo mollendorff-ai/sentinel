@@ -66,6 +66,8 @@ def build_graph() -> StateGraph:
 
 def compile_graph(
     checkpointer: BaseCheckpointSaver | None = None,
+    *,
+    interrupt_before: list[str] | None = None,
 ) -> CompiledStateGraph:
     """Build and compile the pipeline, ready to invoke.
 
@@ -74,6 +76,9 @@ def compile_graph(
     checkpointer
         Optional persistence backend. Pass a ``SqliteSaver`` (or any
         ``BaseCheckpointSaver``) to enable run resumption.
+    interrupt_before
+        Optional list of node names where execution should pause
+        *before* entering the node, enabling human-in-the-loop review.
 
     Returns
     -------
@@ -81,4 +86,7 @@ def compile_graph(
         Executable graph supporting ``invoke`` / ``ainvoke``.
 
     """
-    return build_graph().compile(checkpointer=checkpointer)
+    return build_graph().compile(
+        checkpointer=checkpointer,
+        interrupt_before=interrupt_before or [],
+    )

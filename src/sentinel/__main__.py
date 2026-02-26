@@ -1,4 +1,4 @@
-"""Sentinel CLI entry point — ``python -m sentinel [--quick] AAPL [MSFT ...]``."""
+"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--hitl] AAPL [MSFT ...]``."""
 
 from __future__ import annotations
 
@@ -8,27 +8,39 @@ import os
 import sys
 from datetime import UTC, datetime
 
+from sentinel.approval import prompt_approval, show_draft_summary
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
 from sentinel.llm import PROVIDER_DEFAULTS
 from sentinel.output import write_run_output
 from sentinel.rag.store import create_store, ingest
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
+
+_AGENT_LABELS: dict[str, str] = {
+    "research": "Research",
+    "retriever": "Retriever",
+    "modeler": "Modeler",
+    "risk_analyst": "Risk Analyst",
+    "scenario_planner": "Scenario Planner",
+    "synthesizer": "Synthesizer",
+}
 
 
 async def _run_all(
     tickers: list[str],
     *,
     quick: bool,
+    hitl: bool,
     provider: str,
     model: str,
 ) -> None:
     """Run the pipeline for each ticker sequentially."""
     mode = "quick" if quick else "full"
+    interrupt = ["synthesizer"] if hitl else None
 
     with create_checkpointer() as checkpointer:
-        graph = compile_graph(checkpointer=checkpointer)
+        graph = compile_graph(checkpointer=checkpointer, interrupt_before=interrupt)
 
         for ticker in tickers:
             timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
@@ -48,10 +60,38 @@ async def _run_all(
             }
 
             sys.stdout.write(f"--- {ticker} ---\n")
-            result = await graph.ainvoke(
+
+            # Stream first pass (halts at interrupt if hitl=True)
+            async for update in graph.astream(
                 {"ticker": ticker, "quick": quick},
                 config=config,
-            )
+                stream_mode="updates",
+            ):
+                for node_name in update:
+                    sys.stdout.write(
+                        f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n"
+                    )
+
+            # HITL approval gate
+            if hitl:
+                snapshot = graph.get_state(config)
+                if snapshot.next and "synthesizer" in snapshot.next:
+                    show_draft_summary(snapshot.values)
+                    approved, feedback = prompt_approval()
+                    if not approved and feedback:
+                        await graph.aupdate_state(
+                            config, {"analyst_feedback": feedback}
+                        )
+                    # Resume from interrupt
+                    async for update in graph.astream(
+                        None, config=config, stream_mode="updates"
+                    ):
+                        for node_name in update:
+                            sys.stdout.write(
+                                f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n"
+                            )
+
+            result = dict(graph.get_state(config).values)
 
             run_dir = write_run_output(result)
 
@@ -77,12 +117,16 @@ def main() -> None:
     quick = "--quick" in args
     if quick:
         args.remove("--quick")
+    hitl = "--hitl" in args
+    if hitl:
+        args.remove("--hitl")
 
     if not args:
         sys.stderr.write(
-            "Usage: python -m sentinel [--quick] <TICKER> [TICKER ...]\n",
+            "Usage: python -m sentinel [--quick] [--hitl] <TICKER> [TICKER ...]\n",
         )
         sys.stderr.write("  --quick    Skip risk analysis and scenario planning\n")
+        sys.stderr.write("  --hitl     Pause before Synthesizer for analyst approval\n")
         sys.stderr.write("Example: python -m sentinel AAPL MSFT GOOG\n")
         sys.exit(1)
 
@@ -103,7 +147,7 @@ def main() -> None:
         f"Sentinel v{VERSION} — Analyzing {', '.join(tickers)} ({mode} mode, LLM: {model})\n\n",
     )
 
-    asyncio.run(_run_all(tickers, quick=quick, provider=provider, model=model))
+    asyncio.run(_run_all(tickers, quick=quick, hitl=hitl, provider=provider, model=model))
 
 
 if __name__ == "__main__":

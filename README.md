@@ -65,7 +65,7 @@ Sentinel is part of the [mollendorff-ai](https://github.com/mollendorff-ai) plat
 
 | Project | Role | Details |
 | ------- | ---- | ------- |
-| **[Sentinel](https://github.com/mollendorff-ai/sentinel)** | Multi-agent orchestrator | LangGraph pipeline: 6 agents, Qdrant RAG, conditional routing, self-correction, checkpointing |
+| **[Sentinel](https://github.com/mollendorff-ai/sentinel)** | Multi-agent orchestrator | LangGraph pipeline: 6 agents, Qdrant RAG, HITL approval gate, streaming, conditional routing, self-correction, checkpointing |
 | **[Forge](https://github.com/mollendorff-ai/forge)** | Financial modeling engine | MCP server: 20 tools, 173 Excel functions, 7 analytical engines (DCF, Monte Carlo, sensitivity) |
 | **[Ref](https://github.com/mollendorff-ai/ref)** | Web data ingestion | MCP server: 6 tools, headless Chrome, SPA support, bot protection bypass, structured JSON |
 
@@ -118,7 +118,7 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | v0.4.0 | Persistence, observability, multi-ticker batch, error handling | Shipped |
 | v0.5.0 | C4 architecture diagram, dynamic badges, README showcase | Shipped |
 | v0.6.0 | RAG with Qdrant -- historical earnings for trend analysis | Shipped |
-| v0.7.0 | Human-in-the-loop approval gate, real-time streaming | Current |
+| v0.7.0 | Human-in-the-loop approval gate, real-time streaming | Shipped |
 
 See [CHANGELOG](CHANGELOG.md) for details.
 
@@ -145,6 +145,7 @@ make setup    # creates venv, installs deps, copies .env
 make demo                        # Full 6-agent analysis for AAPL
 make demo TICKER="AAPL MSFT"     # Multi-ticker batch mode
 make demo-quick                  # Quick 3-agent mode (skip risk + scenarios)
+python -m sentinel --hitl AAPL   # Full analysis with analyst approval gate
 make check                       # Lint + test (100% coverage required)
 ```
 

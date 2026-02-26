@@ -339,3 +339,39 @@ async def test_synthesizer_uses_long_word_range_with_history() -> None:
         await synthesizer_node(state)
     prompt = mock_llm.ainvoke.call_args[0][0]
     assert "400-700" in prompt
+
+
+async def test_synthesizer_incorporates_analyst_feedback() -> None:
+    """Verify analyst_feedback is injected into the prompt when set."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"period": "Q1 2026"},
+        "forge_results": {"outputs.margin": 0.5},
+        "analyst_feedback": "Emphasize margin compression.",
+    }
+    mock_response = MagicMock()
+    mock_response.content = "Brief with feedback."
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+    with patch("sentinel.agents.synthesizer.get_llm", return_value=mock_llm):
+        await synthesizer_node(state)
+    prompt = mock_llm.ainvoke.call_args[0][0]
+    assert "ANALYST FEEDBACK" in prompt
+    assert "Emphasize margin compression." in prompt
+
+
+async def test_synthesizer_omits_feedback_section_when_empty() -> None:
+    """Verify ANALYST FEEDBACK section is absent when analyst_feedback is empty/missing."""
+    state: dict[str, Any] = {
+        "ticker": "AAPL",
+        "raw_data": {"period": "Q1 2026"},
+        "forge_results": {"outputs.margin": 0.5},
+    }
+    mock_response = MagicMock()
+    mock_response.content = "Brief without feedback."
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+    with patch("sentinel.agents.synthesizer.get_llm", return_value=mock_llm):
+        await synthesizer_node(state)
+    prompt = mock_llm.ainvoke.call_args[0][0]
+    assert "ANALYST FEEDBACK" not in prompt

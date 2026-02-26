@@ -180,3 +180,15 @@ def test_compile_graph_defaults_to_no_checkpointer() -> None:
     """Verify compile_graph works without a checkpointer (default None)."""
     compiled = compile_graph()
     assert hasattr(compiled, "ainvoke")
+
+
+def test_compile_graph_accepts_interrupt_before() -> None:
+    """Verify compile_graph accepts interrupt_before list."""
+    compiled = compile_graph(interrupt_before=["synthesizer"])
+    assert hasattr(compiled, "ainvoke")
+
+
+def test_compile_graph_interrupt_before_defaults_to_empty() -> None:
+    """Verify compile_graph defaults interrupt_before to empty list."""
+    compiled = compile_graph()
+    assert hasattr(compiled, "ainvoke")

@@ -3,6 +3,27 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] - 2026-02-26
+
+Human-in-the-loop approval gate + real-time streaming.
+
+### Added
+
+- **HITL approval gate** (`--hitl` flag): `interrupt_before=["synthesizer"]` pauses the pipeline before the Synthesizer; analyst reviews computed financials, risk ranges, and scenario outcomes before the brief is generated
+- **Approval module** (`sentinel.approval`): `show_draft_summary()` prints a condensed analysis (revenue, margins, EPS, risk P50, scenario one-liner) to the terminal; `prompt_approval()` reads analyst decision — empty/`a`/`A` approves, anything else rejects with feedback text
+- **Rejection loop**: analyst feedback injected into `SentinelState.analyst_feedback`; `graph.aupdate_state()` writes it before resuming; Synthesizer prompt includes an "ANALYST FEEDBACK" section when set
+- **Real-time streaming**: CLI migrated from `ainvoke` to `astream(stream_mode="updates")`; each completed agent node prints `  [Agent Name]` to the terminal as it finishes
+- **`_AGENT_LABELS`** map in CLI: human-readable labels for all 6 node names
+- **ADR-010:** HITL design — `interrupt_before` + SQLite checkpointer as MCP-compatible pause/resume (accepted); documents Option A two-tool MCP bridge for future implementation
+- `analyst_feedback: str` field added to `SentinelState`
+
+### Changed
+
+- **`compile_graph()`**: new keyword-only parameter `interrupt_before: list[str] | None = None`; passed through to `build_graph().compile()`
+- **Synthesizer agent**: reads `analyst_feedback` from state; injects "ANALYST FEEDBACK" section into `SYNTHESIS_PROMPT` when non-empty
+- **CLI** (`sentinel.__main__`): `--hitl` flag parsing; `astream` + `get_state` replaces `ainvoke`; VERSION = "0.7.0"
+- **Unit tests:** 181 tests at 100% coverage (was 156)
+
 ## [0.6.0] - 2026-02-25
 
 RAG with Qdrant — historical earnings for trend analysis.

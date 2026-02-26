@@ -45,3 +45,11 @@ class SentinelState(TypedDict, total=False):
     (ticker, period, revenue, margins, etc.).  Empty list when no history
     is available (first run or Qdrant unavailable).
     """
+
+    analyst_feedback: str
+    """Analyst feedback injected before the Synthesizer re-runs.
+
+    Set when the analyst rejects the draft analysis during the HITL approval
+    gate (``--hitl`` mode).  Empty string when no feedback was provided.
+    The Synthesizer incorporates this feedback if present.
+    """

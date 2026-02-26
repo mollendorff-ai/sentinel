@@ -27,6 +27,7 @@ FORGE CALCULATION RESULTS (deterministic -- these are the authoritative numbers)
 {risk_section}\
 {scenario_section}\
 {history_section}\
+{feedback_section}\
 
 Write a concise executive brief ({word_range} words) with these sections:
 
@@ -75,6 +76,12 @@ _HISTORY_SECTIONS = """\
 {section_num}. **Historical Trend Analysis** -- Revenue trajectory over prior quarters. \
 Margin expansion or compression trend. EPS progression. Year-over-year comparison \
 with current quarter vs. prior year same period if available.
+"""
+
+_FEEDBACK_SECTION = """\
+
+ANALYST FEEDBACK (incorporate into the brief):
+{analyst_feedback}
 """
 
 
@@ -148,6 +155,13 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         section_num = 4 + int(has_risk) + int(has_scenarios)
         extra_sections += _HISTORY_SECTIONS.format(section_num=section_num)
 
+    analyst_feedback = state.get("analyst_feedback", "")
+    feedback_section = (
+        _FEEDBACK_SECTION.format(analyst_feedback=analyst_feedback)
+        if analyst_feedback
+        else ""
+    )
+
     word_range = "400-700" if (has_risk or has_scenarios or has_history) else "300-500"
 
     # Remove raw_output from forge_results for the prompt (verbose)
@@ -162,6 +176,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         risk_section=risk_section,
         scenario_section=scenario_section,
         history_section=history_section,
+        feedback_section=feedback_section,
         extra_sections=extra_sections,
         word_range=word_range,
     )
