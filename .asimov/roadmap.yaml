@@ -1,17 +1,19 @@
-current:
-  version: "0.7.0"
-  status: pending
-  summary: "Human-in-the-loop + streaming"
-  deliverables:
-    - "[x] LangGraph interrupt_before: analyst approval gate before Synthesizer"
-    - "[x] CLI approval prompt: show draft analysis, [A]pprove / [R]eject + feedback"
-    - "[x] Rejection loop: analyst feedback injected into state, Synthesizer reruns with context"
-    - "[x] Real-time agent progress to terminal (LangGraph streaming API)"
-    - "[x] ADR-010: HITL design -- interrupt_before + checkpointer as MCP-compatible pause/resume"
+current: {}
 
 next: []
 
 released:
+  - version: "0.7.0"
+    date: "2026-02-26"
+    summary: "Human-in-the-loop + streaming"
+    deliverables:
+      - "[x] LangGraph interrupt_before: analyst approval gate before Synthesizer"
+      - "[x] CLI approval prompt: show draft analysis, [A]pprove / [R]eject + feedback"
+      - "[x] Rejection loop: analyst feedback injected into state, Synthesizer reruns with context"
+      - "[x] Real-time agent progress to terminal (LangGraph streaming API)"
+      - "[x] ADR-010: HITL design -- interrupt_before + checkpointer as MCP-compatible pause/resume"
+      - "[x] 181 unit tests at 100% coverage"
+
   - version: "0.6.0"
     date: "2026-02-25"
     summary: "RAG -- historical earnings for trend analysis"
