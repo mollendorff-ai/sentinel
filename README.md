@@ -17,7 +17,7 @@ C4Container
     Person(analyst, "Analyst", "Requests earnings analysis via CLI")
 
     Container_Boundary(sentinel, "Sentinel") {
-        Container(pipeline, "LangGraph Pipeline", "StateGraph", "Conditional routing, self-correction loops, checkpointing")
+        Container(pipeline, "LangGraph Pipeline", "StateGraph", "Conditional routing, self-correction loops, HITL approval gate, streaming, checkpointing")
         Container(research, "Research Agent", "LangChain", "Fetches earnings data, extracts financials")
         Container(retriever, "Retriever Agent", "LangChain", "Queries Qdrant for historical quarters, populates trend context")
         Container(modeler, "Modeler Agent", "LangChain", "Generates Forge YAML, validates, calculates DCF")
@@ -82,7 +82,7 @@ Sentinel orchestrates. Forge calculates. Ref fetches. The LLM reasons -- and is 
 | **Scenario Planner** | Generates bull/base/bear scenarios from guidance language, probability-weighted | Forge scenarios + compare (MCP) |
 | **Synthesizer** | Produces executive summary: valuation range, risk factors, trend analysis, recommendation | Reads all Forge outputs + historical context |
 
-The LangGraph pipeline handles routing, error recovery, and agent self-correction. In `--quick` mode, Risk Analyst and Scenario Planner are skipped via conditional edges.
+The LangGraph pipeline handles routing, error recovery, and agent self-correction. In `--quick` mode, Risk Analyst and Scenario Planner are skipped via conditional edges. In `--hitl` mode, the pipeline pauses before the Synthesizer for analyst review — approve to generate the brief, or reject with feedback to rerun with context.
 
 ## Why This Design
 
@@ -102,6 +102,7 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | ----- | ---------- |
 | Orchestration | LangGraph (Python) -- [why Python?](docs/adr/001-python-over-typescript.md) |
 | Persistence | SQLite checkpointer ([why?](docs/adr/007-sqlite-checkpointer.md)) |
+| HITL | `interrupt_before` + checkpointer -- opt-in via `--hitl`; same mechanism bridges future MCP surface ([ADR-010](docs/adr/010-hitl-interrupt-before-synthesizer.md)) |
 | Historical RAG | Qdrant + fastembed ([why?](docs/adr/009-qdrant-rag-historical-earnings.md)) -- local, zero API key |
 | Observability | LangSmith (per-ticker run names, tags, metadata) |
 | Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (20 tools, 173 Excel functions, 7 analytical engines) |
