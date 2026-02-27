@@ -1,6 +1,23 @@
 current: {}
 
-next: []
+next:
+  - version: "0.9.0"
+    summary: "Security hardening -- prompt injection defence, input validation, least-privilege tooling"
+    deliverables:
+      - "[ ] Prompt injection delimiters + Unicode Tag strip in Research agent (EXTRACTION_PROMPT)"
+      - "[ ] Pydantic RawData schema -- validate numeric types and string lengths before state write and Qdrant ingest"
+      - "[ ] Absolute binary paths for forge/ref (SENTINEL_FORGE_BIN / SENTINEL_REF_BIN env vars)"
+      - "[ ] HITL default flip: --no-review skips approval; human review on by default (Anthropic AUP financial High-Risk)"
+      - "[ ] Per-agent tool scoping: Modeler {validate,calculate}, Risk {simulate,tornado,break_even}, Scenario {scenarios,compare,break_even}, Research {ref_fetch}"
+      - "[ ] Ticker + source_url validation: ^[A-Z]{1,10}$ regex at CLI; domain allowlist for source_url"
+      - "[ ] .sentinel/ and output file permissions hardened: 0o700 dir, 0o600 files"
+      - "[ ] thread_id format + existence validation in sentinel_resume"
+      - "[ ] sentinel purge <TICKER> subcommand -- delete Qdrant records + checkpoints for a ticker (RAG poisoning recovery)"
+      - "[ ] Analyst feedback: 2000-char cap + structural delimiters in Synthesizer prompt"
+      - "[ ] MCP server: asyncio.wait_for timeout (120s full / 60s quick) + concurrent call limit"
+      - "[ ] Ingest audit log: append-only JSON per Qdrant write (ticker, period, timestamp, source_url, raw_data hash)"
+      - "[ ] ADR-012: Security hardening -- prompt injection defence strategy + HITL policy alignment with Anthropic AUP"
+      - "[ ] Unit tests at 100% coverage"
 
 released:
   - version: "0.8.0"
@@ -124,6 +141,7 @@ released:
 
 backlog:
   - "Demo recording (asciinema or GIF) of end-to-end run"
+  - "Automated integration tests in CI: nightly/on-demand workflow_dispatch job with ANTHROPIC_API_KEY secret, separate from fast unit test matrix"
   - "Docker containerization for reproducible demos"
   - "Comparative analysis: multiple companies in same sector"
   - "PDF report generation (WeasyPrint or similar)"
