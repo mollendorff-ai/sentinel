@@ -3,6 +3,25 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] - 2026-02-27
+
+Sentinel as MCP server: `sentinel_analyze` + `sentinel_resume` tools.
+
+### Added
+
+- **MCP server** (`sentinel.mcp.server`): `FastMCP("sentinel")` on stdio transport; launch with `sentinel mcp` or `python -m sentinel mcp`
+- **`sentinel_analyze` tool**: runs the full pipeline (Research → Retriever → Modeler → [Risk → Scenario] → interrupt) with `interrupt_before=["synthesizer"]`; returns `thread_id`, `ticker`, `period`, `draft` (condensed financials snapshot), and `status`
+- **`sentinel_resume` tool**: reloads the SQLite checkpoint by `thread_id`; injects analyst feedback on `reject`; resumes the graph to produce the final brief; calls `write_run_output()` and Qdrant ingest; returns `brief`, `status`, `run_dir`
+- **ADR-011:** Sentinel as MCP server — two-tool split design (`sentinel_analyze` + `sentinel_resume`); `ctx.elicit()` considered and rejected (client support gaps, timeout risk, weaker LangGraph showcase); stdio transport; `mcp.server.fastmcp.FastMCP`
+- **`sentinel` script entry point** in `pyproject.toml` (`[project.scripts]`): `sentinel = "sentinel.__main__:main"`
+- `mcp>=1.26` runtime dependency
+
+### Changed
+
+- **CLI** (`sentinel.__main__`): `mcp` subcommand dispatched before argparse; `_maybe_ingest()` helper extracted from `_run_all()` to reduce complexity (C901); VERSION = "0.8.0"
+- **README**: MCP Server section with tool table, quick-start JSON config, and 3-step usage guide; C4 diagram updated — Sentinel shown as both MCP consumer and server, new MCP Clients system added
+- **Unit tests:** 207 tests at 100% coverage (was 181); 10 integration tests (was 8)
+
 ## [0.7.0] - 2026-02-26
 
 Human-in-the-loop approval gate + real-time streaming.

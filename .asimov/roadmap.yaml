@@ -124,7 +124,6 @@ released:
 
 backlog:
   - "Demo recording (asciinema or GIF) of end-to-end run"
-  - "Sentinel as MCP server: sentinel_analyze + sentinel_resume tools (Option A: two-tool split; interrupt_before + checkpointer bridges CLI HITL and MCP naturally)"
   - "Docker containerization for reproducible demos"
   - "Comparative analysis: multiple companies in same sector"
   - "PDF report generation (WeasyPrint or similar)"
