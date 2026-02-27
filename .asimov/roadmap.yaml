@@ -1,4 +1,14 @@
-current: {}
+current:
+  version: "0.8.0"
+  summary: "Sentinel as MCP server -- sentinel_analyze + sentinel_resume tools"
+  deliverables:
+    - "[ ] MCP server entry point: sentinel mcp (stdio transport)"
+    - "[ ] sentinel_analyze tool: run pipeline to HITL gate, return thread_id + draft snapshot"
+    - "[ ] sentinel_resume tool: approve/reject with feedback, resume from checkpoint, return brief"
+    - "[ ] ADR-011: Sentinel as MCP server design (two-tool split, ctx.elicit() considered + rejected)"
+    - "[ ] README: MCP server section + updated C4 diagram showing Sentinel as MCP peer"
+    - "[ ] Unit tests at 100% coverage"
+    - "[ ] Integration/e2e tests: MCP protocol smoke tests"
 
 next: []
 

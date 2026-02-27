@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 import pytest
 
@@ -14,7 +18,7 @@ def _mock_graph(result: dict, *, next_nodes: tuple[str, ...] = ()) -> MagicMock:
     """Create a mock compiled graph that returns the given result via astream + get_state."""
     mock = MagicMock()
 
-    async def _astream(*args, **kwargs):
+    async def _astream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, dict]]:
         for key in result:
             yield {key: {}}
 
@@ -394,6 +398,38 @@ def test_main_hitl_skipped_when_no_flag(
     mock_show.assert_not_called()
     mock_prompt.assert_not_called()
     assert mock_graph.astream.call_count == 1
+
+
+def test_main_mcp_subcommand_dispatches_to_run_mcp_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify 'sentinel mcp' dispatches to run_mcp_server and exits cleanly."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "mcp"])
+    mock_run = MagicMock()
+    with (
+        patch("sentinel.__main__.run_mcp_server", mock_run),
+        pytest.raises(SystemExit, match="0"),
+    ):
+        main()
+
+    mock_run.assert_called_once()
+
+
+def test_main_mcp_subcommand_does_not_run_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify 'sentinel mcp' exits before the pipeline is compiled."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "mcp"])
+    mock_run = MagicMock()
+    mock_compile = MagicMock()
+    with (
+        patch("sentinel.__main__.run_mcp_server", mock_run),
+        patch("sentinel.__main__.compile_graph", mock_compile),
+        pytest.raises(SystemExit),
+    ):
+        main()
+
+    mock_compile.assert_not_called()
 
 
 def test_main_streaming_progress_printed(

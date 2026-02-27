@@ -15,8 +15,10 @@ C4Container
     title Sentinel — C4 Container Diagram
 
     Person(analyst, "Analyst", "Requests earnings analysis via CLI")
+    System_Ext(mcp_client, "MCP Clients", "Claude Code, Claude Desktop, other LLM agents")
 
     Container_Boundary(sentinel, "Sentinel") {
+        Container(mcp_server, "MCP Server", "FastMCP / stdio", "sentinel_analyze + sentinel_resume — two-tool HITL flow")
         Container(pipeline, "LangGraph Pipeline", "StateGraph", "Conditional routing, self-correction loops, HITL approval gate, streaming, checkpointing")
         Container(research, "Research Agent", "LangChain", "Fetches earnings data, extracts financials")
         Container(retriever, "Retriever Agent", "LangChain", "Queries Qdrant for historical quarters, populates trend context")
@@ -34,6 +36,8 @@ C4Container
     System_Ext(langsmith, "LangSmith", "Observability: traces, run names, tags, metadata")
 
     Rel(analyst, pipeline, "Runs", "CLI / Makefile")
+    Rel(mcp_client, mcp_server, "Calls tools", "MCP / stdio")
+    Rel(mcp_server, pipeline, "Drives")
     Rel(pipeline, research, "Dispatches")
     Rel(pipeline, retriever, "Dispatches")
     Rel(pipeline, modeler, "Dispatches")
@@ -65,7 +69,7 @@ Sentinel is part of the [mollendorff-ai](https://github.com/mollendorff-ai) plat
 
 | Project | Role | Details |
 | ------- | ---- | ------- |
-| **[Sentinel](https://github.com/mollendorff-ai/sentinel)** | Multi-agent orchestrator | LangGraph pipeline: 6 agents, Qdrant RAG, HITL approval gate, streaming, conditional routing, self-correction, checkpointing |
+| **[Sentinel](https://github.com/mollendorff-ai/sentinel)** | Multi-agent orchestrator | LangGraph pipeline: 6 agents, Qdrant RAG, HITL approval gate, streaming, conditional routing, self-correction, checkpointing. Also an MCP server (2 tools) |
 | **[Forge](https://github.com/mollendorff-ai/forge)** | Financial modeling engine | MCP server: 20 tools, 173 Excel functions, 7 analytical engines (DCF, Monte Carlo, sensitivity) |
 | **[Ref](https://github.com/mollendorff-ai/ref)** | Web data ingestion | MCP server: 6 tools, headless Chrome, SPA support, bot protection bypass, structured JSON |
 
@@ -102,7 +106,8 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | ----- | ---------- |
 | Orchestration | LangGraph (Python) -- [why Python?](docs/adr/001-python-over-typescript.md) |
 | Persistence | SQLite checkpointer ([why?](docs/adr/007-sqlite-checkpointer.md)) |
-| HITL | `interrupt_before` + checkpointer -- opt-in via `--hitl`; same mechanism bridges future MCP surface ([ADR-010](docs/adr/010-hitl-interrupt-before-synthesizer.md)) |
+| HITL | `interrupt_before` + checkpointer -- opt-in via `--hitl`; same mechanism drives the MCP server ([ADR-010](docs/adr/010-hitl-interrupt-before-synthesizer.md)) |
+| MCP Server | FastMCP over stdio -- `sentinel_analyze` + `sentinel_resume` ([ADR-011](docs/adr/011-sentinel-as-mcp-server.md)) |
 | Historical RAG | Qdrant + fastembed ([why?](docs/adr/009-qdrant-rag-historical-earnings.md)) -- local, zero API key |
 | Observability | LangSmith (per-ticker run names, tags, metadata) |
 | Financial modeling | [Forge](https://github.com/mollendorff-ai/forge) via MCP (20 tools, 173 Excel functions, 7 analytical engines) |
@@ -120,6 +125,7 @@ The agent writes YAML. Forge validates the formulas. If the model is wrong, Forg
 | v0.5.0 | C4 architecture diagram, dynamic badges, README showcase | Shipped |
 | v0.6.0 | RAG with Qdrant -- historical earnings for trend analysis | Shipped |
 | v0.7.0 | Human-in-the-loop approval gate, real-time streaming | Shipped |
+| v0.8.0 | Sentinel as MCP server -- two-tool HITL flow for Claude Code / Desktop | Current |
 
 See [CHANGELOG](CHANGELOG.md) for details.
 
@@ -151,6 +157,38 @@ make check                       # Lint + test (100% coverage required)
 ```
 
 Results are saved to `output/{TICKER}/{timestamp}/` with JSON, markdown, and YAML artifacts.
+
+## MCP Server
+
+Sentinel exposes itself as an MCP server over stdio, consistent with Forge and Ref.
+Two tools implement the HITL flow from v0.7.0 ([ADR-011](docs/adr/011-sentinel-as-mcp-server.md)):
+
+| Tool | Description |
+| ---- | ----------- |
+| `sentinel_analyze` | Run the full pipeline to the analyst approval gate. Returns `thread_id` + draft snapshot. |
+| `sentinel_resume` | Resume from checkpoint. Pass `decision="approve"` or `"reject"` with optional `feedback`. Returns final brief. |
+
+### Quick start
+
+Add to your MCP client configuration (e.g. `~/.claude/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "sentinel": {
+      "command": "python",
+      "args": ["-m", "sentinel", "mcp"],
+      "cwd": "/path/to/sentinel"
+    }
+  }
+}
+```
+
+Then in Claude Code or Claude Desktop:
+
+1. Call `sentinel_analyze` with a ticker to get back `thread_id` and draft financials
+2. Review the draft (risk ranges, scenario projections, historical trend)
+3. Call `sentinel_resume` with `thread_id` + `decision="approve"` to get the final brief
 
 ## License
 

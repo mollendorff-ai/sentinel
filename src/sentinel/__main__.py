@@ -1,4 +1,9 @@
-"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--hitl] AAPL [MSFT ...]``."""
+"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--hitl] AAPL [MSFT ...]``.
+
+Subcommands
+-----------
+``python -m sentinel mcp``  — start MCP server on stdio transport.
+"""
 
 from __future__ import annotations
 
@@ -7,15 +12,32 @@ import logging
 import os
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 from sentinel.approval import prompt_approval, show_draft_summary
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
 from sentinel.llm import PROVIDER_DEFAULTS
+from sentinel.mcp import run_mcp_server
 from sentinel.output import write_run_output
 from sentinel.rag.store import create_store, ingest
 
 VERSION = "0.7.0"
+
+
+def _maybe_ingest(ticker: str, raw_data: dict[str, Any]) -> None:
+    """Ingest raw_data into Qdrant; non-fatal on failure."""
+    if not raw_data or "error" in raw_data:
+        return
+    try:
+        store = create_store()
+        ingest(store, raw_data)
+    except (OSError, RuntimeError, ValueError):
+        logging.getLogger(__name__).warning(
+            "Sentinel: Qdrant ingest failed for %s (non-fatal)",
+            ticker,
+        )
+
 
 _AGENT_LABELS: dict[str, str] = {
     "research": "Research",
@@ -68,9 +90,7 @@ async def _run_all(
                 stream_mode="updates",
             ):
                 for node_name in update:
-                    sys.stdout.write(
-                        f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n"
-                    )
+                    sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
 
             # HITL approval gate
             if hitl:
@@ -79,32 +99,18 @@ async def _run_all(
                     show_draft_summary(snapshot.values)
                     approved, feedback = prompt_approval()
                     if not approved and feedback:
-                        await graph.aupdate_state(
-                            config, {"analyst_feedback": feedback}
-                        )
+                        await graph.aupdate_state(config, {"analyst_feedback": feedback})
                     # Resume from interrupt
-                    async for update in graph.astream(
-                        None, config=config, stream_mode="updates"
-                    ):
+                    async for update in graph.astream(None, config=config, stream_mode="updates"):
                         for node_name in update:
-                            sys.stdout.write(
-                                f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n"
-                            )
+                            sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
 
             result = dict(graph.get_state(config).values)
 
             run_dir = write_run_output(result)
 
             # Ingest current raw_data into Qdrant for future trend analysis
-            raw_data = result.get("raw_data", {})
-            if raw_data and "error" not in raw_data:
-                try:
-                    store = create_store()
-                    ingest(store, raw_data)
-                except Exception:
-                    logging.getLogger(__name__).warning(
-                        "Sentinel: Qdrant ingest failed for %s (non-fatal)", ticker
-                    )
+            _maybe_ingest(ticker, result.get("raw_data", {}))
 
             brief = result.get("brief", "No brief generated.")
             sys.stdout.write(f"{brief}\n")
@@ -113,6 +119,11 @@ async def _run_all(
 
 def main() -> None:
     """Run the Sentinel earnings-analysis pipeline for one or more tickers."""
+    # MCP subcommand — dispatch before argparse touches sys.argv
+    if len(sys.argv) > 1 and sys.argv[1] == "mcp":
+        run_mcp_server()
+        sys.exit(0)
+
     args = sys.argv[1:]
     quick = "--quick" in args
     if quick:

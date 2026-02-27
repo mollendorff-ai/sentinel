@@ -113,10 +113,11 @@ def ingest(client: QdrantClient, raw_data: dict[str, Any]) -> bool:
             ids=[point_id],
         )
         logger.info("Qdrant ingest: upserted %s %s (id=%s)", ticker, period, point_id)
-        return True
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         logger.exception("Qdrant ingest: failed for %s %s", ticker, period)
         return False
+    else:
+        return True
 
 
 def retrieve(
@@ -154,10 +155,8 @@ def retrieve(
             query_text=query_text,
             limit=top_k + 1,
         )
-    except Exception:
-        logger.warning(
-            "Qdrant retrieve: no history for %s (collection may not exist yet)", ticker
-        )
+    except (OSError, RuntimeError, ValueError):
+        logger.warning("Qdrant retrieve: no history for %s (collection may not exist yet)", ticker)
         return []
 
     results = []

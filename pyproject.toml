@@ -16,7 +16,11 @@ dependencies = [
     "langsmith>=0.3",
     "langgraph-checkpoint-sqlite>=2.0",
     "qdrant-client[fastembed]>=1.9",
+    "mcp>=1.26",
 ]
+
+[project.scripts]
+sentinel = "sentinel.__main__:main"
 
 [project.optional-dependencies]
 openai = ["langchain-openai>=0.3"]

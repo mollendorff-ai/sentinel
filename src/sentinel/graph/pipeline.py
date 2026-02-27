@@ -31,8 +31,9 @@ def build_graph() -> StateGraph:
 
     Graph topology::
 
-        START → research → retriever → modeler ──┬──→ risk_analyst → scenario_planner ──┬──→ synthesizer → END
-                                                  └─── (quick=True) ────────────────────┘
+        START → research → retriever → modeler
+            ──┬──→ risk_analyst → scenario_planner ──┬──→ synthesizer → END
+              └─────────────── (quick=True) ──────────┘
 
     Returns
     -------

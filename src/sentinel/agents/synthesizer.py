@@ -157,9 +157,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
 
     analyst_feedback = state.get("analyst_feedback", "")
     feedback_section = (
-        _FEEDBACK_SECTION.format(analyst_feedback=analyst_feedback)
-        if analyst_feedback
-        else ""
+        _FEEDBACK_SECTION.format(analyst_feedback=analyst_feedback) if analyst_feedback else ""
     )
 
     word_range = "400-700" if (has_risk or has_scenarios or has_history) else "300-500"

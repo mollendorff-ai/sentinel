@@ -9,6 +9,55 @@ _SEPARATOR = "━" * 40
 _INDENT = " "
 
 
+def _write_financials(raw_data: dict[str, Any]) -> None:
+    """Write key financial metrics from raw_data to stdout."""
+    revenue = raw_data.get("revenue")
+    if revenue is not None:
+        sys.stdout.write(f"{_INDENT}Revenue:          ${revenue:,.0f}M\n")
+
+    gross_margin = raw_data.get("gross_margin")
+    if gross_margin is not None:
+        sys.stdout.write(f"{_INDENT}Gross Margin:     {gross_margin:.1%}\n")
+
+    operating_margin = raw_data.get("operating_margin")
+    if operating_margin is not None:
+        sys.stdout.write(f"{_INDENT}Operating Margin: {operating_margin:.1%}\n")
+
+    eps = raw_data.get("eps")
+    if eps is not None:
+        sys.stdout.write(f"{_INDENT}EPS:              ${eps:.2f}\n")
+
+
+def _write_risk(risk_analysis: dict[str, Any]) -> None:
+    """Write Monte Carlo P10/P50/P90 risk line to stdout."""
+    mc = risk_analysis.get("monte_carlo", {})
+    p50 = mc.get("p50") or mc.get("P50")
+    p10 = mc.get("p10") or mc.get("P10")
+    p90 = mc.get("p90") or mc.get("P90")
+    if p50 is not None:
+        p10_str = f"P10 ${p10:,.0f}M" if p10 is not None else ""
+        p90_str = f"P90 ${p90:,.0f}M" if p90 is not None else ""
+        range_str = " / ".join(filter(None, [p10_str, p90_str]))
+        line = f"{_INDENT}Risk P50:         ${p50:,.0f}M"
+        if range_str:
+            line += f"  ({range_str})"
+        sys.stdout.write(f"{line}\n")
+
+
+def _write_scenarios(scenario_analysis: dict[str, Any]) -> None:
+    """Write bear/base/bull scenario one-liner to stdout."""
+    scenarios = scenario_analysis.get("scenarios", [])
+    if scenarios:
+        parts = []
+        for s in scenarios:
+            name = s.get("name", "")
+            rev = s.get("revenue")
+            if name and rev is not None:
+                parts.append(f"{name} ${rev:,.0f}M")
+        if parts:
+            sys.stdout.write(f"{_INDENT}Scenario:         {' · '.join(parts)}\n")
+
+
 def show_draft_summary(state: dict[str, Any]) -> None:
     """Print a condensed analysis summary to stdout for analyst review.
 
@@ -32,52 +81,15 @@ def show_draft_summary(state: dict[str, Any]) -> None:
 
     sys.stdout.write(f"\n{_SEPARATOR}\n{header}\n{_SEPARATOR}\n")
 
-    # Key financials from raw_data
-    revenue = raw_data.get("revenue")
-    if revenue is not None:
-        sys.stdout.write(f"{_INDENT}Revenue:          ${revenue:,.0f}M\n")
+    _write_financials(raw_data)
 
-    gross_margin = raw_data.get("gross_margin")
-    if gross_margin is not None:
-        sys.stdout.write(f"{_INDENT}Gross Margin:     {gross_margin:.1%}\n")
-
-    operating_margin = raw_data.get("operating_margin")
-    if operating_margin is not None:
-        sys.stdout.write(f"{_INDENT}Operating Margin: {operating_margin:.1%}\n")
-
-    eps = raw_data.get("eps")
-    if eps is not None:
-        sys.stdout.write(f"{_INDENT}EPS:              ${eps:.2f}\n")
-
-    # Risk P10/P50/P90 if available
     risk_analysis = state.get("risk_analysis", {})
     if risk_analysis and "error" not in risk_analysis:
-        mc = risk_analysis.get("monte_carlo", {})
-        p50 = mc.get("p50") or mc.get("P50")
-        p10 = mc.get("p10") or mc.get("P10")
-        p90 = mc.get("p90") or mc.get("P90")
-        if p50 is not None:
-            p10_str = f"P10 ${p10:,.0f}M" if p10 is not None else ""
-            p90_str = f"P90 ${p90:,.0f}M" if p90 is not None else ""
-            range_str = " / ".join(filter(None, [p10_str, p90_str]))
-            line = f"{_INDENT}Risk P50:         ${p50:,.0f}M"
-            if range_str:
-                line += f"  ({range_str})"
-            sys.stdout.write(f"{line}\n")
+        _write_risk(risk_analysis)
 
-    # Scenario bear/base/bull one-liner if available
     scenario_analysis = state.get("scenario_analysis", {})
     if scenario_analysis and "error" not in scenario_analysis:
-        scenarios = scenario_analysis.get("scenarios", [])
-        if scenarios:
-            parts = []
-            for s in scenarios:
-                name = s.get("name", "")
-                rev = s.get("revenue")
-                if name and rev is not None:
-                    parts.append(f"{name} ${rev:,.0f}M")
-            if parts:
-                sys.stdout.write(f"{_INDENT}Scenario:         {' · '.join(parts)}\n")
+        _write_scenarios(scenario_analysis)
 
     sys.stdout.write(f"{_SEPARATOR}\n")
 

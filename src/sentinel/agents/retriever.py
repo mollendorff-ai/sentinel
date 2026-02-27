@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sentinel.graph.state import SentinelState
 from sentinel.rag.store import create_store, retrieve
+
+if TYPE_CHECKING:
+    from sentinel.graph.state import SentinelState
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +40,10 @@ async def retriever_node(state: SentinelState) -> dict[str, Any]:
     period = raw_data.get("period", "")
 
     if "error" in raw_data:
-        logger.warning(
-            "Retriever agent: skipping — research returned error for %s", ticker
-        )
+        logger.warning("Retriever agent: skipping — research returned error for %s", ticker)
         return {"historical_context": []}
 
-    logger.info(
-        "Retriever agent: querying history for %s (current: %s)", ticker, period
-    )
+    logger.info("Retriever agent: querying history for %s (current: %s)", ticker, period)
 
     try:
         client = create_store()
