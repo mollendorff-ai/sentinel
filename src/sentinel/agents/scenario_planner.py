@@ -1,15 +1,25 @@
-"""Scenario Planner agent -- generates Bull/Base/Bear scenarios from a Forge model."""
+"""Scenario Planner agent -- bull / base / bear scenarios run in Forge.
+
+The scenarios are built in code (see :mod:`sentinel.tools.risk_models`): revenue
+moves by +/-10%, cost of revenue and net income move with it, operating expenses
+stay fixed.  They are an illustration of operating leverage, not a forecast.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sentinel.llm import get_llm
 from sentinel.tools.forge_mcp import get_forge_tools
+from sentinel.tools.forge_text import json_or_error, parse_json, text_from
+from sentinel.tools.risk_models import (
+    OUTPUT_VARIABLE,
+    SCENARIO_NAMES,
+    ModelShapeError,
+    add_scenarios,
+)
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -18,79 +28,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 3
-
-SCENARIO_AUGMENTATION_PROMPT = """\
-You are a financial scenario analyst.  Given the Forge v5.0.0 YAML model below,
-augment it with a ``scenarios:`` section containing Bull, Base, and Bear cases.
-
-CURRENT MODEL:
-{model_yaml}
-
-EARNINGS DATA:
-{earnings_json}
-
-Add a ``scenarios:`` section with this structure:
-
-```yaml
-scenarios:
-  - name: Bull
-    probability: 0.25
-    scalars:
-      inputs.revenue: <+10-15% from base>
-      inputs.cost_of_revenue: <adjust proportionally>
-      inputs.operating_expenses: <same or slightly lower>
-  - name: Base
-    probability: 0.50
-    scalars:
-      inputs.revenue: <current value>
-      inputs.cost_of_revenue: <current value>
-      inputs.operating_expenses: <current value>
-  - name: Bear
-    probability: 0.25
-    scalars:
-      inputs.revenue: <-10-15% from base>
-      inputs.cost_of_revenue: <adjust proportionally>
-      inputs.operating_expenses: <same or slightly higher>
-```
-
-Rules:
-- Probabilities MUST sum to 1.0.
-- Bull case: revenue +10-15%, cost adjusts proportionally, opex flat or lower.
-- Base case: current values from the model inputs.
-- Bear case: revenue -10-15%, cost adjusts proportionally, opex flat or higher.
-- Calibrate from management guidance in the earnings data if available.
-- Only use scalar keys that exist in the model ``inputs:`` section.
-- Preserve ALL existing sections (inputs, outputs, monte_carlo, tornado, etc.).
-- Return ONLY the complete YAML content, no markdown fences, no commentary.
-"""
-
-CORRECTION_PROMPT = """\
-The augmented Forge model has validation errors:
-
-{errors}
-
-Here is the model you generated:
-{model_yaml}
-
-Fix the errors and return the corrected YAML.  Return ONLY the YAML content,
-no markdown fences, no commentary.
-"""
-
-
-def _text_from(result: list[dict[str, Any]]) -> str:
-    """Extract text from MCP tool result content blocks."""
-    return " ".join(block["text"] for block in result if block.get("type") == "text")
-
-
-def _strip_fences(text: str) -> str:
-    """Remove markdown code fences from YAML content."""
-    lines = text.strip().splitlines()
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines)
+_ASSUMPTIONS = (
+    "Revenue +10% (bull) / -10% (bear); cost of revenue and net income move with "
+    "revenue; operating expenses fixed. Probabilities 25/50/25 are illustrative."
+)
 
 
 def _write_temp_yaml(content: str, prefix: str) -> Path:
@@ -104,17 +45,49 @@ def _write_temp_yaml(content: str, prefix: str) -> Path:
 def _cleanup(path: Path) -> None:
     """Remove a temp YAML file and its Forge backup."""
     path.unlink(missing_ok=True)
-    bak = path.with_suffix(".yaml.bak")
-    bak.unlink(missing_ok=True)
+    path.with_suffix(".yaml.bak").unlink(missing_ok=True)
+
+
+async def _call(tool: BaseTool, args: dict[str, Any], name: str) -> dict[str, Any]:
+    """Invoke a Forge tool and return JSON, or ``{"error": ...}`` on any failure."""
+    try:
+        return json_or_error(text_from(await tool.ainvoke(args)), name)
+    except Exception:
+        logger.exception("Scenario Planner: %s failed", name)
+        return {"error": f"{name} failed"}
+
+
+def _flatten(scenarios: object) -> list[dict[str, Any]]:
+    """Add top-level ``revenue`` and ``operating_income`` to each scenario."""
+    if not isinstance(scenarios, list):
+        return []
+    flat: list[dict[str, Any]] = []
+    for item in scenarios:
+        if not isinstance(item, dict):
+            continue
+        scalars = item.get("scalars", {})
+        flat.append(
+            {
+                "name": item.get("name"),
+                "probability": item.get("probability"),
+                "revenue": scalars.get("inputs.revenue"),
+                "operating_income": scalars.get(OUTPUT_VARIABLE),
+                "scalars": scalars,
+            },
+        )
+    return flat
+
+
+def _expected_value(flat: list[dict[str, Any]]) -> dict[str, float]:
+    """Probability-weighted operating income, when every scenario has both parts."""
+    parts = [(s["probability"], s["operating_income"]) for s in flat]
+    if not parts or any(p is None or v is None for p, v in parts):
+        return {}
+    return {OUTPUT_VARIABLE: sum(p * v for p, v in parts)}
 
 
 async def scenario_planner_node(state: SentinelState) -> dict[str, Any]:
-    """Generate Bull/Base/Bear scenarios and run scenario analysis.
-
-    Augments an existing Forge YAML model with a ``scenarios:`` section,
-    then runs ``forge_scenarios``, ``forge_compare``, and ``forge_break_even``.
-    Includes a self-correction loop: if ``forge_validate`` returns errors,
-    the model is revised up to :data:`MAX_RETRIES` times.
+    """Build bull / base / bear scenarios and run Forge's scenario tools.
 
     Returns
     -------
@@ -131,161 +104,55 @@ async def scenario_planner_node(state: SentinelState) -> dict[str, Any]:
         return {"scenario_analysis": {"error": forge_results["error"]}}
 
     ticker = state["ticker"]
-    logger.info("Scenario Planner: generating scenarios for %s", ticker)
+    base_yaml = state.get("risk_analysis", {}).get("risk_yaml") or state["model_yaml"]
+    logger.info("Scenario Planner: building scenarios for %s", ticker)
 
-    llm = get_llm(max_tokens=4096)
-    tools = await get_forge_tools()
-
-    forge_validate = next(t for t in tools if t.name == "forge_validate")
-    forge_scenarios = next(t for t in tools if t.name == "forge_scenarios")
-    forge_compare = next(t for t in tools if t.name == "forge_compare")
-    forge_break_even = next(t for t in tools if t.name == "forge_break_even")
-
-    # Use risk-augmented YAML if available, otherwise fall back to model_yaml
-    risk_analysis = state.get("risk_analysis", {})
-    base_yaml = risk_analysis.get("risk_yaml", state["model_yaml"])
-
-    raw_data = state.get("raw_data", {})
-
-    # LLM generates augmented YAML with scenarios section
-    prompt = SCENARIO_AUGMENTATION_PROMPT.format(
-        model_yaml=base_yaml,
-        earnings_json=json.dumps(raw_data, indent=2),
-    )
     try:
-        response = await llm.ainvoke(prompt)
-    except Exception:
-        logger.exception("Scenario Planner: LLM generation failed for %s", ticker)
-        return {
-            "scenario_analysis": {"error": f"LLM generation failed for {ticker}"},
-        }
-    augmented_yaml = (
-        response.content if isinstance(response.content, str) else str(response.content)
-    )
-    augmented_yaml = _strip_fences(augmented_yaml)
+        scenario_yaml = add_scenarios(base_yaml)
+    except ModelShapeError as exc:
+        logger.exception("Scenario Planner: cannot build scenarios for %s", ticker)
+        return {"scenario_analysis": {"error": f"Cannot build scenarios: {exc}"}}
 
-    # Self-correction loop: validate -> fix -> retry
-    for attempt in range(1, MAX_RETRIES + 1):
-        model_path = _write_temp_yaml(augmented_yaml, f"{ticker}-scenario")
-        try:
-            try:
-                val_result = await forge_validate.ainvoke({"file_path": str(model_path)})
-                val_text = _text_from(val_result)
-            except Exception:
-                logger.exception(
-                    "Scenario Planner: forge_validate failed (attempt %d)",
-                    attempt,
-                )
-                continue
-
-            val_data = json.loads(val_text)
-            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
-                logger.info(
-                    "Scenario Planner: validation passed (attempt %d)",
-                    attempt,
-                )
-                break
-
-            logger.warning(
-                "Scenario Planner: validation failed (attempt %d): %s",
-                attempt,
-                val_text[:200],
-            )
-
-            if attempt < MAX_RETRIES:
-                correction = CORRECTION_PROMPT.format(
-                    errors=val_text,
-                    model_yaml=augmented_yaml,
-                )
-                try:
-                    response = await llm.ainvoke(correction)
-                except Exception:
-                    logger.exception(
-                        "Scenario Planner: LLM correction failed (attempt %d)",
-                        attempt,
-                    )
-                    continue
-                augmented_yaml = (
-                    response.content
-                    if isinstance(response.content, str)
-                    else str(response.content)
-                )
-                augmented_yaml = _strip_fences(augmented_yaml)
-        finally:
-            _cleanup(model_path)
-    else:
-        logger.error(
-            "Scenario Planner: validation failed after %d attempts",
-            MAX_RETRIES,
+    tools = {t.name: t for t in await get_forge_tools()}
+    path = _write_temp_yaml(scenario_yaml, f"{ticker}-scenario")
+    try:
+        validation = parse_json(
+            text_from(await tools["forge_validate"].ainvoke({"file_path": str(path)})),
         )
-        return {
-            "scenario_analysis": {
-                "error": f"Validation failed after {MAX_RETRIES} attempts",
-            },
-        }
+        if not (validation and validation.get("tables_valid") and validation.get("scalars_valid")):
+            logger.error("Scenario Planner: Forge rejected the scenarios for %s", ticker)
+            return {"scenario_analysis": {"error": "Forge rejected the scenario model"}}
 
-    return await _run_scenario_tools(
-        augmented_yaml,
-        ticker,
-        forge_scenarios=forge_scenarios,
-        forge_compare=forge_compare,
-        forge_break_even=forge_break_even,
-    )
-
-
-async def _run_scenario_tools(
-    augmented_yaml: str,
-    ticker: str,
-    *,
-    forge_scenarios: BaseTool,
-    forge_compare: BaseTool,
-    forge_break_even: BaseTool,
-) -> dict[str, Any]:
-    """Run forge_scenarios, forge_compare, and forge_break_even on augmented YAML."""
-    model_path = _write_temp_yaml(augmented_yaml, f"{ticker}-scenario")
-    try:
-        try:
-            scenarios_result = await forge_scenarios.ainvoke({"file_path": str(model_path)})
-            scenarios_data: dict[str, Any] = json.loads(_text_from(scenarios_result))
-        except Exception:
-            logger.exception("Scenario Planner: forge_scenarios failed for %s", ticker)
-            scenarios_data = {"error": "forge_scenarios failed"}
-
-        try:
-            compare_result = await forge_compare.ainvoke(
-                {
-                    "file_path": str(model_path),
-                    "scenarios": ["Bull", "Base", "Bear"],
-                },
-            )
-            compare_data: dict[str, Any] = json.loads(_text_from(compare_result))
-        except Exception:
-            logger.exception("Scenario Planner: forge_compare failed for %s", ticker)
-            compare_data = {"error": "forge_compare failed"}
-
-        try:
-            break_even_result = await forge_break_even.ainvoke(
-                {
-                    "file_path": str(model_path),
-                    "output": "outputs.operating_income",
-                    "vary": "inputs.revenue",
-                },
-            )
-            break_even_data: dict[str, Any] = json.loads(_text_from(break_even_result))
-        except Exception:
-            logger.exception("Scenario Planner: forge_break_even failed for %s", ticker)
-            break_even_data = {"error": "forge_break_even failed"}
-
-        logger.info("Scenario Planner: analysis complete for %s", ticker)
+        scenarios = await _call(
+            tools["forge_scenarios"],
+            {"file_path": str(path)},
+            "forge_scenarios",
+        )
+        comparison = await _call(
+            tools["forge_compare"],
+            {"file_path": str(path), "scenarios": list(SCENARIO_NAMES)},
+            "forge_compare",
+        )
+        break_even = await _call(
+            tools["forge_break_even"],
+            {"file_path": str(path), "output": OUTPUT_VARIABLE, "vary": "inputs.revenue"},
+            "forge_break_even",
+        )
+    except Exception:
+        logger.exception("Scenario Planner: Forge validation failed for %s", ticker)
+        return {"scenario_analysis": {"error": "forge_validate failed"}}
     finally:
-        _cleanup(model_path)
+        _cleanup(path)
 
+    flat = _flatten(scenarios.get("scenarios"))
+    logger.info("Scenario Planner: analysis complete for %s", ticker)
     return {
         "scenario_analysis": {
-            "scenarios": scenarios_data.get("scenarios", []),
-            "expected_values": scenarios_data.get("expected_values", {}),
-            "comparison": compare_data,
-            "break_even_thresholds": break_even_data,
-            "scenario_yaml": augmented_yaml,
+            "scenarios": flat,
+            "expected_values": _expected_value(flat),
+            "comparison": comparison,
+            "break_even_thresholds": break_even,
+            "scenario_yaml": scenario_yaml,
+            "assumptions": _ASSUMPTIONS,
         },
     }

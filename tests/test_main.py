@@ -15,7 +15,7 @@ from sentinel.__main__ import VERSION, main
 
 
 def _mock_graph(result: dict, *, next_nodes: tuple[str, ...] = ()) -> MagicMock:
-    """Create a mock compiled graph that returns the given result via astream + get_state."""
+    """Create a mock compiled graph that returns the given result via astream + aget_state."""
     mock = MagicMock()
 
     async def _astream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, dict]]:
@@ -27,7 +27,7 @@ def _mock_graph(result: dict, *, next_nodes: tuple[str, ...] = ()) -> MagicMock:
     state_snap = MagicMock()
     state_snap.values = result
     state_snap.next = next_nodes
-    mock.get_state = MagicMock(return_value=state_snap)
+    mock.aget_state = AsyncMock(return_value=state_snap)
     mock.aupdate_state = AsyncMock()
     return mock
 
@@ -35,8 +35,8 @@ def _mock_graph(result: dict, *, next_nodes: tuple[str, ...] = ()) -> MagicMock:
 def _patch_cli(mock_graph: MagicMock, run_dir: Path | None = None) -> tuple:
     """Context manager that patches checkpointer, compile_graph, output, and rag."""
     mock_checkpointer = MagicMock()
-    mock_checkpointer.__enter__ = MagicMock(return_value=mock_checkpointer)
-    mock_checkpointer.__exit__ = MagicMock(return_value=False)
+    mock_checkpointer.__aenter__ = AsyncMock(return_value=mock_checkpointer)
+    mock_checkpointer.__aexit__ = AsyncMock(return_value=False)
 
     return (
         patch("sentinel.__main__.create_checkpointer", return_value=mock_checkpointer),
@@ -202,8 +202,8 @@ def test_main_calls_write_run_output(
     mock_graph = _mock_graph(result)
 
     mock_checkpointer = MagicMock()
-    mock_checkpointer.__enter__ = MagicMock(return_value=mock_checkpointer)
-    mock_checkpointer.__exit__ = MagicMock(return_value=False)
+    mock_checkpointer.__aenter__ = AsyncMock(return_value=mock_checkpointer)
+    mock_checkpointer.__aexit__ = AsyncMock(return_value=False)
 
     mock_write = MagicMock(return_value=Path("output/AAPL/20260222"))
 
@@ -454,3 +454,51 @@ def test_main_streaming_progress_printed(
     out = capsys.readouterr().out
     assert "  [Research]" in out
     assert "  [Modeler]" in out
+
+
+def test_main_help_prints_usage(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--help prints the usage on stdout and exits 0."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "--help"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert "Usage" in capsys.readouterr().out
+
+
+def test_main_version_prints_version(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--version prints the version and exits 0."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "--version"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert VERSION in capsys.readouterr().out
+
+
+def test_main_rejects_unknown_option(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unknown flag is an error, not a ticker."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "--fast", "AAPL"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2  # noqa: PLR2004
+    assert "Unknown option: --fast" in capsys.readouterr().err
+
+
+def test_main_rejects_invalid_ticker(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A ticker that could escape the output folder is refused before any work starts."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "../../ESCAPED"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2  # noqa: PLR2004
+    assert "Invalid ticker" in capsys.readouterr().err

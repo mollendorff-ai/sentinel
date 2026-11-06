@@ -30,7 +30,7 @@ def _mock_graph(
     *,
     next_nodes: tuple[str, ...] = ("synthesizer",),
 ) -> MagicMock:
-    """Create a mock compiled graph returning *state* via astream + get_state."""
+    """Create a mock compiled graph returning *state* via astream + aget_state."""
     mock = MagicMock()
 
     async def _astream(
@@ -45,7 +45,7 @@ def _mock_graph(
     snapshot = MagicMock()
     snapshot.values = state
     snapshot.next = next_nodes
-    mock.get_state = MagicMock(return_value=snapshot)
+    mock.aget_state = AsyncMock(return_value=snapshot)
     mock.aupdate_state = AsyncMock()
     return mock
 
@@ -53,8 +53,8 @@ def _mock_graph(
 def _mock_checkpointer() -> MagicMock:
     """Create a mock checkpointer context manager."""
     ckpt = MagicMock()
-    ckpt.__enter__ = MagicMock(return_value=ckpt)
-    ckpt.__exit__ = MagicMock(return_value=False)
+    ckpt.__aenter__ = AsyncMock(return_value=ckpt)
+    ckpt.__aexit__ = AsyncMock(return_value=False)
     return ckpt
 
 
@@ -110,6 +110,7 @@ async def test_mcp_stdio_protocol_tool_discovery() -> None:
             },
         },
     )
+    initialized_msg = json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"})
     list_msg = json.dumps(
         {
             "jsonrpc": "2.0",
@@ -119,8 +120,6 @@ async def test_mcp_stdio_protocol_tool_discovery() -> None:
         },
     )
 
-    stdin_data = f"{init_msg}\n{list_msg}\n".encode()
-
     proc = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
@@ -128,15 +127,29 @@ async def test_mcp_stdio_protocol_tool_discovery() -> None:
         "mcp",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
         cwd=_PROJECT_ROOT,
     )
-    stdout, _stderr = await asyncio.wait_for(proc.communicate(stdin_data), timeout=30)
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+    proc.stdin.write(f"{init_msg}\n{initialized_msg}\n{list_msg}\n".encode())
+    await proc.stdin.drain()
 
-    # Parse JSON-RPC responses from stdout (one per line)
-    responses = [json.loads(raw) for raw in stdout.decode().strip().splitlines() if raw.strip()]
+    # Keep stdin open until the answer arrives: closing it early ends the server.
+    responses: list[dict[str, Any]] = []
+    try:
+        while True:
+            raw = await asyncio.wait_for(proc.stdout.readline(), timeout=30)
+            if not raw:
+                break
+            responses.append(json.loads(raw))
+            if responses[-1].get("id") == _TOOLS_LIST_REQUEST_ID:
+                break
+    finally:
+        proc.stdin.close()
+        proc.kill()
+        await proc.wait()
 
-    # Find the tools/list response
     tools_resp = next(
         (r for r in responses if r.get("id") == _TOOLS_LIST_REQUEST_ID),
         None,

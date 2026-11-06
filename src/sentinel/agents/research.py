@@ -116,7 +116,10 @@ def _parse_llm_response(response_text: str) -> dict[str, Any]:
         start = response_text.find("{")
         end = response_text.rfind("}") + 1
         if start >= 0 and end > start:
-            return dict(json.loads(response_text[start:end]))
+            try:
+                return dict(json.loads(response_text[start:end]))
+            except json.JSONDecodeError:
+                pass
         return {
             "error": "Failed to parse extraction response",
             "raw_response": response_text[:500],
@@ -178,7 +181,7 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
     )
 
     raw_data = _parse_llm_response(response_text)
-    raw_data["source_url"] = raw_data.get("source_url", source_url)
+    raw_data["source_url"] = raw_data.get("source_url") or source_url
     logger.info(
         "Research agent: extracted data for %s (%s)",
         ticker,

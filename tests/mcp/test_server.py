@@ -29,7 +29,7 @@ def _mock_graph(
     *,
     next_nodes: tuple[str, ...] = ("synthesizer",),
 ) -> MagicMock:
-    """Create a mock compiled graph returning *state* via astream + get_state."""
+    """Create a mock compiled graph returning *state* via astream + aget_state."""
     mock = MagicMock()
 
     async def _astream(
@@ -44,7 +44,7 @@ def _mock_graph(
     snapshot = MagicMock()
     snapshot.values = state
     snapshot.next = next_nodes
-    mock.get_state = MagicMock(return_value=snapshot)
+    mock.aget_state = AsyncMock(return_value=snapshot)
     mock.aupdate_state = AsyncMock()
     return mock
 
@@ -52,8 +52,8 @@ def _mock_graph(
 def _mock_checkpointer() -> MagicMock:
     """Create a mock checkpointer context manager."""
     ckpt = MagicMock()
-    ckpt.__enter__ = MagicMock(return_value=ckpt)
-    ckpt.__exit__ = MagicMock(return_value=False)
+    ckpt.__aenter__ = AsyncMock(return_value=ckpt)
+    ckpt.__aexit__ = AsyncMock(return_value=False)
     return ckpt
 
 

@@ -3,594 +3,146 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+from sentinel.agents.scenario_planner import scenario_planner_node
 
-from sentinel.agents.scenario_planner import (
-    _cleanup,
-    _strip_fences,
-    _text_from,
-    _write_temp_yaml,
-    scenario_planner_node,
-)
-
-EXPECTED_VALIDATE_CALLS = 2
-EXPECTED_BULL_OI = 50000
-EXPECTED_BASE_OI = 38300
-EXPECTED_BEAR_OI = 20000
-EXPECTED_EV_OI = 36650
-
-VALID_YAML = (
-    '_forge_version: "5.0.0"\n'
-    "inputs:\n"
-    "  revenue:\n"
-    "    value: 94800\n"
-    "    formula: null\n"
-    "scenarios:\n"
-    "  - name: Bull\n"
-    "    probability: 0.25\n"
-    "    scalars:\n"
-    "      inputs.revenue: 108120\n"
-)
-
-
-def _make_valid_validation() -> list[dict[str, Any]]:
-    return [
+VALID = {"tables_valid": True, "scalars_valid": True, "mismatches": []}
+OPERATING = "outputs.operating_income"
+SCENARIOS = {
+    "scenarios": [
         {
-            "type": "text",
-            "text": json.dumps(
-                {
-                    "tables_valid": True,
-                    "scalars_valid": True,
-                    "mismatches": [],
-                },
-            ),
+            "name": "bull",
+            "probability": 0.25,
+            "scalars": {"inputs.revenue": 110.0, OPERATING: 60.0},
         },
-    ]
-
-
-def _make_invalid_validation() -> list[dict[str, Any]]:
-    return [
         {
-            "type": "text",
-            "text": json.dumps(
-                {
-                    "tables_valid": False,
-                    "scalars_valid": False,
-                    "mismatches": [{"field": "scenarios", "error": "invalid format"}],
-                },
-            ),
+            "name": "base",
+            "probability": 0.5,
+            "scalars": {"inputs.revenue": 100.0, OPERATING: 50.0},
         },
-    ]
-
-
-def _make_scenarios_result() -> list[dict[str, Any]]:
-    return [
         {
-            "type": "text",
-            "text": json.dumps(
-                {
-                    "scenarios": [
-                        {
-                            "name": "Bull",
-                            "probability": 0.25,
-                            "outputs": {"outputs.operating_income": EXPECTED_BULL_OI},
-                        },
-                        {
-                            "name": "Base",
-                            "probability": 0.50,
-                            "outputs": {"outputs.operating_income": EXPECTED_BASE_OI},
-                        },
-                        {
-                            "name": "Bear",
-                            "probability": 0.25,
-                            "outputs": {"outputs.operating_income": EXPECTED_BEAR_OI},
-                        },
-                    ],
-                    "expected_values": {"outputs.operating_income": EXPECTED_EV_OI},
-                    "probability_positive": {"outputs.operating_income": 0.95},
-                    "ranges": {"outputs.operating_income": [EXPECTED_BEAR_OI, EXPECTED_BULL_OI]},
-                },
-            ),
+            "name": "bear",
+            "probability": 0.25,
+            "scalars": {"inputs.revenue": 90.0, OPERATING: 40.0},
         },
-    ]
+    ],
+}
+COMPARE = {"scenarios": ["bull", "base", "bear"], "values": {}}
+BREAK_EVEN = {"solution": 56.0, "converged": True}
+EXPECTED_VALUE = 50.0
+
+SOURCE = """\
+inputs:
+  revenue:
+    value: 100
+    formula: null
+  cost_of_revenue:
+    value: 50
+    formula: null
+outputs:
+  operating_income:
+    value: null
+    formula: "=inputs.revenue - inputs.cost_of_revenue"
+"""
 
 
-def _make_compare_result() -> list[dict[str, Any]]:
-    return [
-        {
-            "type": "text",
-            "text": json.dumps(
-                {
-                    "scenarios": ["Bull", "Base", "Bear"],
-                    "variables": ["outputs.operating_income"],
-                    "values": {
-                        "outputs.operating_income": {
-                            "Bull": EXPECTED_BULL_OI,
-                            "Base": EXPECTED_BASE_OI,
-                            "Bear": EXPECTED_BEAR_OI,
-                        },
-                    },
-                },
-            ),
-        },
-    ]
+def _tool(name: str, payload: object) -> MagicMock:
+    tool = MagicMock()
+    tool.name = name
+    text = payload if isinstance(payload, str) else json.dumps(payload)
+    tool.ainvoke = AsyncMock(return_value=[{"type": "text", "text": text}])
+    return tool
 
 
-def _make_break_even_result() -> list[dict[str, Any]]:
-    return [
-        {
-            "type": "text",
-            "text": json.dumps(
-                {
-                    "output": "outputs.operating_income",
-                    "vary": "inputs.revenue",
-                    "break_even_value": 56500,
-                },
-            ),
-        },
-    ]
-
-
-def _make_mock_tools(
-    *,
-    validate_side_effect: list[list[dict[str, str]]] | None = None,
-    validate_return: list[dict[str, str]] | None = None,
-) -> list[MagicMock]:
-    mock_validate = MagicMock()
-    mock_validate.name = "forge_validate"
-    if validate_side_effect is not None:
-        mock_validate.ainvoke = AsyncMock(side_effect=validate_side_effect)
-    else:
-        mock_validate.ainvoke = AsyncMock(
-            return_value=validate_return or _make_valid_validation(),
-        )
-
-    mock_scenarios = MagicMock()
-    mock_scenarios.name = "forge_scenarios"
-    mock_scenarios.ainvoke = AsyncMock(return_value=_make_scenarios_result())
-
-    mock_compare = MagicMock()
-    mock_compare.name = "forge_compare"
-    mock_compare.ainvoke = AsyncMock(return_value=_make_compare_result())
-
-    mock_break_even = MagicMock()
-    mock_break_even.name = "forge_break_even"
-    mock_break_even.ainvoke = AsyncMock(return_value=_make_break_even_result())
-
-    return [mock_validate, mock_scenarios, mock_compare, mock_break_even]
-
-
-def test_strip_fences_removes_yaml_fences() -> None:
-    """Verify markdown code fences are stripped from YAML."""
-    fenced = "```yaml\nscenarios:\n  - name: Bull\n```"
-    assert _strip_fences(fenced) == "scenarios:\n  - name: Bull"
-
-
-def test_strip_fences_noop_on_clean_yaml() -> None:
-    """Verify clean YAML passes through unchanged."""
-    clean = "scenarios:\n  - name: Bull\n    probability: 0.25"
-    assert _strip_fences(clean) == clean
-
-
-def test_text_from_extracts_text_blocks() -> None:
-    """Verify text extraction from MCP content blocks."""
-    result: list[dict[str, Any]] = [
-        {"type": "text", "text": "hello"},
-        {"type": "image", "data": "..."},
-        {"type": "text", "text": "world"},
-    ]
-    assert _text_from(result) == "hello world"
-
-
-def test_write_temp_yaml_creates_file() -> None:
-    """Verify temp YAML file is written with correct content."""
-    path = _write_temp_yaml("test content", "test")
-    try:
-        assert path.exists()
-        assert path.read_text() == "test content"
-        assert path.suffix == ".yaml"
-    finally:
-        path.unlink()
-
-
-def test_cleanup_removes_file_and_backup() -> None:
-    """Verify cleanup removes both YAML file and .bak backup."""
-    path = _write_temp_yaml("content", "cleanup")
-    bak = path.with_suffix(".yaml.bak")
-    bak.write_text("backup")
-    _cleanup(path)
-    assert not path.exists()
-    assert not bak.exists()
-
-
-async def test_scenario_planner_node_skips_on_forge_error() -> None:
-    """Verify scenario planner returns error when forge_results has error."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"error": "Validation failed after 3 attempts"},
+def _tools(**overrides: object) -> list[MagicMock]:
+    payloads: dict[str, object] = {
+        "forge_validate": VALID,
+        "forge_scenarios": SCENARIOS,
+        "forge_compare": COMPARE,
+        "forge_break_even": BREAK_EVEN,
     }
-    result = await scenario_planner_node(state)
-    assert "error" in result["scenario_analysis"]
+    payloads.update(overrides)
+    return [_tool(n, p) for n, p in payloads.items()]
 
 
-async def test_scenario_planner_node_runs_full_analysis() -> None:
-    """Verify scenario planner generates scenarios and runs all tools."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800, "cost_of_revenue": 42000},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = VALID_YAML
-
-    mock_tools = _make_mock_tools()
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    sa = result["scenario_analysis"]
-    assert "scenarios" in sa
-    assert "expected_values" in sa
-    assert "comparison" in sa
-    assert "break_even_thresholds" in sa
-    assert "scenario_yaml" in sa
-    assert sa["expected_values"]["outputs.operating_income"] == EXPECTED_EV_OI
+def _state(**extra: Any) -> dict[str, Any]:  # noqa: ANN401
+    return {"ticker": "AAPL", "model_yaml": SOURCE, "forge_results": {}, **extra}
 
 
-async def test_scenario_planner_node_retries_on_validation_failure() -> None:
-    """Verify scenario planner retries when validation fails, then succeeds."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
+async def _run(tools: list[MagicMock], state: dict[str, Any]) -> dict[str, Any]:
+    with patch("sentinel.agents.scenario_planner.get_forge_tools", AsyncMock(return_value=tools)):
+        result = await scenario_planner_node(state)  # type: ignore[arg-type]
+    return result["scenario_analysis"]
 
-    bad_yaml = "bad yaml"
-    mock_response_bad = AsyncMock()
-    mock_response_bad.content = bad_yaml
-    mock_response_good = AsyncMock()
-    mock_response_good.content = VALID_YAML
 
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke = AsyncMock(
-        side_effect=[mock_response_bad, mock_response_good],
+async def test_full_analysis() -> None:
+    """Full analysis."""
+    tools = _tools()
+    out = await _run(tools, _state())
+    assert [s["name"] for s in out["scenarios"]] == ["bull", "base", "bear"]
+    assert out["scenarios"][0]["revenue"] == 110.0  # noqa: PLR2004
+    assert out["expected_values"] == {OPERATING: EXPECTED_VALUE}
+    assert out["comparison"] == COMPARE
+    assert out["break_even_thresholds"] == BREAK_EVEN
+    assert "scenarios:" in out["scenario_yaml"]
+    assert "Revenue +10%" in out["assumptions"]
+    compare = next(t for t in tools if t.name == "forge_compare")
+    assert compare.ainvoke.call_args.args[0]["scenarios"] == ["bull", "base", "bear"]
+    path = Path(compare.ainvoke.call_args.args[0]["file_path"])
+    assert not path.exists()  # noqa: ASYNC240
+
+
+async def test_builds_on_risk_yaml_when_present() -> None:
+    """Builds on risk yaml when present."""
+    risk = SOURCE + "tornado:\n  output: outputs.operating_income\n  inputs: []\n"
+    out = await _run(_tools(), _state(risk_analysis={"risk_yaml": risk}))
+    assert "tornado:" in out["scenario_yaml"]
+
+
+async def test_skips_when_upstream_error() -> None:
+    """Skips when upstream error."""
+    out = await _run(_tools(), _state(forge_results={"error": "boom"}))
+    assert out == {"error": "boom"}
+
+
+async def test_unusable_model() -> None:
+    """Unusable model."""
+    out = await _run(_tools(), _state(model_yaml="- nope"))
+    assert "Cannot build scenarios" in out["error"]
+
+
+async def test_forge_rejects_scenarios() -> None:
+    """Forge rejects scenarios."""
+    out = await _run(_tools(forge_validate={"tables_valid": False}), _state())
+    assert out == {"error": "Forge rejected the scenario model"}
+
+
+async def test_validate_exception() -> None:
+    """Validate exception."""
+    tools = _tools()
+    tools[0].ainvoke = AsyncMock(side_effect=RuntimeError("down"))
+    assert await _run(tools, _state()) == {"error": "forge_validate failed"}
+
+
+async def test_tool_failures_become_errors() -> None:
+    """Tool failures become errors."""
+    tools = _tools(forge_scenarios="Scenario analysis failed: bad", forge_compare="x")
+    next(t for t in tools if t.name == "forge_compare").ainvoke = AsyncMock(
+        side_effect=RuntimeError("crash"),
     )
-
-    mock_tools = _make_mock_tools(
-        validate_side_effect=[
-            _make_invalid_validation(),
-            _make_valid_validation(),
-        ],
-    )
-    mock_validate = mock_tools[0]
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=mock_llm,
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    assert "scenarios" in result["scenario_analysis"]
-    assert mock_validate.ainvoke.call_count == EXPECTED_VALIDATE_CALLS
+    out = await _run(tools, _state())
+    assert out["scenarios"] == []
+    assert out["expected_values"] == {}
+    assert out["comparison"] == {"error": "forge_compare failed"}
+    assert out["break_even_thresholds"] == BREAK_EVEN
 
 
-async def test_scenario_planner_node_exhausts_retries() -> None:
-    """Verify scenario planner returns error after all retries fail."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_response = AsyncMock()
-    mock_response.content = "bad yaml"
-
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-
-    mock_tools = _make_mock_tools(validate_return=_make_invalid_validation())
-
-    with (
-        patch("sentinel.agents.scenario_planner.get_llm", return_value=mock_llm),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    assert "error" in result["scenario_analysis"]
-    assert "failed after" in result["scenario_analysis"]["error"].lower()
-
-
-async def test_scenario_planner_uses_risk_yaml_when_available() -> None:
-    """Verify scenario planner uses risk_yaml over model_yaml when present."""
-    risk_yaml = VALID_YAML + "\nmonte_carlo:\n  iterations: 1000\n"
-
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-        "risk_analysis": {"risk_yaml": risk_yaml},
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = risk_yaml
-
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke = AsyncMock(return_value=mock_llm_response)
-
-    mock_tools = _make_mock_tools()
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=mock_llm,
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    # Verify the LLM was called with risk_yaml (which contains monte_carlo)
-    call_args = mock_llm.ainvoke.call_args_list[0]
-    prompt_text = call_args[0][0]
-    assert "monte_carlo" in prompt_text
-    assert "scenarios" in result["scenario_analysis"]
-
-
-async def test_scenario_planner_node_handles_validate_exception_in_loop() -> None:
-    """Verify scenario planner exhausts retries when validate raises in loop."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = VALID_YAML
-
-    mock_tools = _make_mock_tools()
-    mock_tools[0].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    assert "error" in result["scenario_analysis"]
-    assert "failed after" in result["scenario_analysis"]["error"].lower()
-
-
-async def test_scenario_planner_node_handles_llm_correction_exception_in_loop() -> None:
-    """Verify scenario planner exhausts retries when LLM correction raises in loop."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_initial_response = AsyncMock()
-    mock_initial_response.content = VALID_YAML
-
-    # First call succeeds (generation), correction call throws
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke = AsyncMock(
-        side_effect=[mock_initial_response, RuntimeError("correction boom")],
-    )
-
-    mock_tools = _make_mock_tools(validate_return=_make_invalid_validation())
-
-    with (
-        patch("sentinel.agents.scenario_planner.get_llm", return_value=mock_llm),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    assert "error" in result["scenario_analysis"]
-
-
-async def test_scenario_planner_node_handles_llm_exception() -> None:
-    """Verify scenario planner returns error when LLM generation raises."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
-
-    mock_tools = _make_mock_tools()
-
-    with (
-        patch("sentinel.agents.scenario_planner.get_llm", return_value=mock_llm),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    assert "error" in result["scenario_analysis"]
-    assert "LLM generation failed" in result["scenario_analysis"]["error"]
-
-
-async def test_scenario_planner_node_handles_scenarios_exception() -> None:
-    """Verify partial results when forge_scenarios raises but others succeed."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = VALID_YAML
-
-    mock_tools = _make_mock_tools()
-    mock_tools[1].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    sa = result["scenario_analysis"]
-    assert sa["scenarios"] == []
-    assert sa["expected_values"] == {}
-    assert "error" not in sa["comparison"]
-    assert "error" not in sa["break_even_thresholds"]
-
-
-async def test_scenario_planner_node_handles_compare_exception() -> None:
-    """Verify partial results when forge_compare raises but others succeed."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = VALID_YAML
-
-    mock_tools = _make_mock_tools()
-    mock_tools[2].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    sa = result["scenario_analysis"]
-    assert len(sa["scenarios"]) > 0
-    assert "error" in sa["comparison"]
-    assert "error" not in sa["break_even_thresholds"]
-
-
-async def test_scenario_planner_node_handles_break_even_exception() -> None:
-    """Verify partial results when forge_break_even raises but others succeed."""
-    state: dict[str, Any] = {
-        "ticker": "AAPL",
-        "raw_data": {"revenue": 94800},
-        "model_yaml": VALID_YAML,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = VALID_YAML
-
-    mock_tools = _make_mock_tools()
-    mock_tools[3].ainvoke = AsyncMock(side_effect=RuntimeError("boom"))
-
-    with (
-        patch(
-            "sentinel.agents.scenario_planner.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-        patch(
-            "sentinel.agents.scenario_planner.get_forge_tools",
-            new_callable=AsyncMock,
-            return_value=mock_tools,
-        ),
-    ):
-        result = await scenario_planner_node(state)
-
-    sa = result["scenario_analysis"]
-    assert len(sa["scenarios"]) > 0
-    assert "error" not in sa["comparison"]
-    assert "error" in sa["break_even_thresholds"]
-
-
-@pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("ANTHROPIC_API_KEY"),
-    reason="Requires ANTHROPIC_API_KEY",
-)
-async def test_scenario_planner_with_real_forge() -> None:  # pragma: no cover
-    """Integration test: run scenario planner with real Forge MCP.
-
-    Requires ``forge`` binary on PATH.
-    """
-    fixture = Path(__file__).parent.parent / "fixtures" / "risk_model.yaml"
-    model_yaml = fixture.read_text()
-
-    state: dict[str, Any] = {
-        "ticker": "TEST",
-        "raw_data": {
-            "revenue": 94800,
-            "cost_of_revenue": 42000,
-            "operating_expenses": 14500,
-        },
-        "model_yaml": model_yaml,
-        "forge_results": {"outputs.gross_profit": 52800},
-    }
-    result = await scenario_planner_node(state)
-    sa = result["scenario_analysis"]
-    assert "scenarios" in sa or "error" in sa
+async def test_malformed_scenario_entries() -> None:
+    """Malformed scenario entries."""
+    odd = {"scenarios": ["junk", {"name": "bull", "probability": 1.0, "scalars": {}}]}
+    out = await _run(_tools(forge_scenarios=odd), _state())
+    assert len(out["scenarios"]) == 1
+    assert out["expected_values"] == {}

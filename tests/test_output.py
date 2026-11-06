@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from sentinel.output import _write_json, _write_text, write_run_output
 
 EXPECTED_REVENUE = 100_000
@@ -129,3 +131,10 @@ def test_write_text_preserves_existing_newline(tmp_path: Path) -> None:
     path = tmp_path / "test.txt"
     _write_text(path, "hello\n")
     assert path.read_text() == "hello\n"
+
+
+def test_write_run_output_refuses_path_traversal(tmp_path: Path) -> None:
+    """A ticker with path separators must not write outside the output dir."""
+    with pytest.raises(ValueError, match="Invalid ticker"):
+        write_run_output({"ticker": "../../evil"}, output_dir=tmp_path / "out")
+    assert not (tmp_path / "evil").exists()

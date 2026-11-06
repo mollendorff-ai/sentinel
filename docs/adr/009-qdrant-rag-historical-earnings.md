@@ -1,7 +1,16 @@
 # ADR-009: Qdrant RAG for Historical Earnings Trend Analysis
 
-**Status:** Accepted
+**Status:** Accepted, amended 2026-11-05 (see below)
 **Date:** 2026-02-25
+
+## Amendment (0.8.1)
+
+`qdrant-client` 1.20 no longer has the `add()` / `query()` fastembed helpers, and the embedding model
+could not be downloaded in a restricted environment. The text embeddings were never needed: history is
+looked up by ticker, not by meaning. The store is now a local Qdrant collection with a one-element
+placeholder vector, a `ticker` / `period` payload, and retrieval by payload filter (`scroll`), newest
+period first, current period excluded. Point IDs are unchanged. The fastembed paragraphs below describe
+the original design.
 
 ## Context
 
@@ -28,7 +37,7 @@ Qdrant so it is available for future runs.
 
 ## New Graph Topology
 
-```
+```text
 START → research → retriever → modeler ──┬──→ risk_analyst → scenario_planner ──┬──→ synthesizer → END
                                           └─── (quick=True) ────────────────────┘
 ```

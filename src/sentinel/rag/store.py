@@ -1,20 +1,28 @@
-"""Qdrant vector store — historical earnings ingestion and retrieval."""
+"""Qdrant store — historical earnings ingestion and retrieval by ticker.
+
+History is looked up by an exact ``ticker`` payload filter, so no embedding model is
+needed (``qdrant-client`` 1.20 removed the ``add``/``query`` helpers that used one).
+"""
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any
 
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models
 
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "earnings"
 DEFAULT_QDRANT_PATH = Path(".sentinel/qdrant")
 TOP_K = 4
+_SCAN_LIMIT = 1000
+_VECTOR = [1.0]
+"""Qdrant needs a vector per point; lookups use the payload filter, not similarity."""
 
 
 def _qdrant_path() -> Path:
@@ -26,6 +34,9 @@ def _qdrant_path() -> Path:
 def create_store(path: Path | None = None) -> QdrantClient:
     """Create (or open) a local Qdrant store.
 
+    Local Qdrant allows one open client per folder, so callers must ``close()``
+    the client when they are done.
+
     Parameters
     ----------
     path
@@ -35,8 +46,7 @@ def create_store(path: Path | None = None) -> QdrantClient:
     Returns
     -------
     QdrantClient
-        A Qdrant client backed by local disk.  The collection is created
-        automatically on first :func:`ingest` call (fastembed owns dimensions).
+        A Qdrant client backed by local disk.
 
     """
     resolved = path if path is not None else _qdrant_path()
@@ -50,30 +60,11 @@ def _point_id(ticker: str, period: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{ticker}:{period}"))
 
 
-def _to_text(raw_data: dict[str, Any]) -> str:
-    """Serialise raw_data to a flat text representation for embedding."""
-    numeric_fields = [
-        "revenue",
-        "cost_of_revenue",
-        "gross_profit",
-        "operating_expenses",
-        "operating_income",
-        "net_income",
-        "eps",
-        "revenue_growth_yoy",
-        "gross_margin",
-        "operating_margin",
-    ]
-    parts = [
-        f"ticker={raw_data.get('ticker', '')}",
-        f"period={raw_data.get('period', '')}",
-        f"company={raw_data.get('company', '')}",
-    ]
-    for field in numeric_fields:
-        val = raw_data.get(field)
-        if val is not None:
-            parts.append(f"{field}={val}")
-    return " ".join(parts)
+def _period_key(period: str) -> tuple[int, int]:
+    """Sort key (year, quarter) for labels like ``Q1 2026`` or ``FY 2025``; unknown → (0, 0)."""
+    year = re.search(r"(19|20)\d{2}", period)
+    quarter = re.search(r"Q([1-4])", period.upper())
+    return (int(year.group()) if year else 0, int(quarter.group(1)) if quarter else 5)
 
 
 def ingest(client: QdrantClient, raw_data: dict[str, Any]) -> bool:
@@ -103,14 +94,25 @@ def ingest(client: QdrantClient, raw_data: dict[str, Any]) -> bool:
         return False
 
     point_id = _point_id(ticker, period)
-    text = _to_text(raw_data)
 
     try:
-        client.add(
+        if not client.collection_exists(COLLECTION_NAME):
+            client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=models.VectorParams(
+                    size=len(_VECTOR),
+                    distance=models.Distance.DOT,
+                ),
+            )
+        client.upsert(
             collection_name=COLLECTION_NAME,
-            documents=[text],
-            metadata=[{"ticker": ticker, "period": period, **raw_data}],
-            ids=[point_id],
+            points=[
+                models.PointStruct(
+                    id=point_id,
+                    vector=_VECTOR,
+                    payload={**raw_data, "ticker": ticker, "period": period},
+                ),
+            ],
         )
         logger.info("Qdrant ingest: upserted %s %s (id=%s)", ticker, period, point_id)
     except (OSError, RuntimeError, ValueError):
@@ -127,7 +129,7 @@ def retrieve(
     *,
     top_k: int = TOP_K,
 ) -> list[dict[str, Any]]:
-    """Query Qdrant for the most relevant historical quarters.
+    """Return the most recent stored quarters for *ticker*, excluding the current one.
 
     Parameters
     ----------
@@ -143,30 +145,31 @@ def retrieve(
     Returns
     -------
     list[dict[str, Any]]
-        Payloads for the top-k nearest historical records, ordered by
-        similarity.  Empty list on failure or no history.
+        Payloads for the latest stored periods of this ticker, newest first.
+        Empty list on failure or no history.
 
     """
-    query_text = f"ticker={ticker} period={current_period}"
-
     try:
-        hits = client.query(
+        if not client.collection_exists(COLLECTION_NAME):
+            logger.info("Qdrant retrieve: no history for %s yet", ticker)
+            return []
+        points, _next = client.scroll(
             collection_name=COLLECTION_NAME,
-            query_text=query_text,
-            limit=top_k + 1,
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(key="ticker", match=models.MatchValue(value=ticker)),
+                ],
+            ),
+            limit=_SCAN_LIMIT,
+            with_payload=True,
+            with_vectors=False,
         )
     except (OSError, RuntimeError, ValueError):
-        logger.warning("Qdrant retrieve: no history for %s (collection may not exist yet)", ticker)
+        logger.warning("Qdrant retrieve: lookup failed for %s", ticker)
         return []
 
-    results = []
-    for hit in hits:
-        payload = hit.metadata if hasattr(hit, "metadata") else {}
-        if payload.get("period") == current_period:
-            continue
-        results.append(payload)
-        if len(results) >= top_k:
-            break
-
-    logger.info("Qdrant retrieve: %d records for %s", len(results), ticker)
-    return results
+    history = [dict(p.payload or {}) for p in points]
+    history = [h for h in history if h.get("period") != current_period]
+    history.sort(key=lambda h: _period_key(str(h.get("period", ""))), reverse=True)
+    logger.info("Qdrant retrieve: %d records for %s", min(len(history), top_k), ticker)
+    return history[:top_k]

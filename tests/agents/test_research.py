@@ -6,7 +6,7 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from sentinel.agents.research import _build_urls, research_node
+from sentinel.agents.research import _build_urls, _parse_llm_response, research_node
 
 EXPECTED_REVENUE = 100_000
 EXPECTED_REVENUE_PARTIAL = 50_000
@@ -267,3 +267,9 @@ async def test_research_node_handles_llm_exception() -> None:
     assert "error" in result["raw_data"]
     assert "LLM extraction failed" in result["raw_data"]["error"]
     assert result["raw_data"]["ticker"] == "AAPL"
+
+
+def test_parse_llm_response_handles_broken_json_inside_braces() -> None:
+    """Text with braces that is still not JSON returns the error dict instead of raising."""
+    result = _parse_llm_response("Here you go: {not valid json} thanks")
+    assert result["error"] == "Failed to parse extraction response"

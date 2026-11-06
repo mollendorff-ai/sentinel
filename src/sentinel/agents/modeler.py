@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from sentinel.llm import get_llm
 from sentinel.tools.forge_mcp import get_forge_tools
+from sentinel.tools.forge_text import parse_json
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -122,8 +123,8 @@ async def _validate_loop(
                 )
                 continue
 
-            val_data = json.loads(val_text)
-            if val_data.get("tables_valid") and val_data.get("scalars_valid"):
+            val_data = parse_json(val_text)
+            if val_data and val_data.get("tables_valid") and val_data.get("scalars_valid"):
                 logger.info("Modeler agent: validation passed (attempt %d)", attempt)
                 return model_yaml, True
 
@@ -273,5 +274,7 @@ def _parse_calc_results(text: str) -> dict[str, Any]:
 
     Forge MCP returns JSON with ``scalars`` and ``tables`` keys.
     """
-    data = json.loads(text)
+    data = parse_json(text)
+    if data is None:
+        return {"error": f"forge_calculate failed: {text.strip()[:400]}"}
     return dict(data.get("scalars", {}))

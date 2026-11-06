@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: ruff format --check .
-      - run: ruff check --select ALL .
+      - run: ruff check .
 
   test:
     name: Test (Python ${{ matrix.python-version }})

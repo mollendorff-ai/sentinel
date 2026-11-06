@@ -14,6 +14,9 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
+from dotenv import load_dotenv
+
+from sentinel import __version__
 from sentinel.approval import prompt_approval, show_draft_summary
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
@@ -21,8 +24,9 @@ from sentinel.llm import PROVIDER_DEFAULTS
 from sentinel.mcp import run_mcp_server
 from sentinel.output import write_run_output
 from sentinel.rag.store import create_store, ingest
+from sentinel.validation import validate_ticker
 
-VERSION = "0.7.0"
+VERSION = __version__
 
 
 def _maybe_ingest(ticker: str, raw_data: dict[str, Any]) -> None:
@@ -31,7 +35,10 @@ def _maybe_ingest(ticker: str, raw_data: dict[str, Any]) -> None:
         return
     try:
         store = create_store()
-        ingest(store, raw_data)
+        try:
+            ingest(store, raw_data)
+        finally:
+            store.close()
     except (OSError, RuntimeError, ValueError):
         logging.getLogger(__name__).warning(
             "Sentinel: Qdrant ingest failed for %s (non-fatal)",
@@ -61,7 +68,7 @@ async def _run_all(
     mode = "quick" if quick else "full"
     interrupt = ["synthesizer"] if hitl else None
 
-    with create_checkpointer() as checkpointer:
+    async with create_checkpointer() as checkpointer:
         graph = compile_graph(checkpointer=checkpointer, interrupt_before=interrupt)
 
         for ticker in tickers:
@@ -94,7 +101,7 @@ async def _run_all(
 
             # HITL approval gate
             if hitl:
-                snapshot = graph.get_state(config)
+                snapshot = await graph.aget_state(config)
                 if snapshot.next and "synthesizer" in snapshot.next:
                     show_draft_summary(snapshot.values)
                     approved, feedback = prompt_approval()
@@ -105,7 +112,7 @@ async def _run_all(
                         for node_name in update:
                             sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
 
-            result = dict(graph.get_state(config).values)
+            result = dict((await graph.aget_state(config)).values)
 
             run_dir = write_run_output(result)
 
@@ -117,31 +124,52 @@ async def _run_all(
             sys.stdout.write(f"Output: {run_dir}\n\n")
 
 
+_USAGE = (
+    "Usage: python -m sentinel [--quick] [--hitl] <TICKER> [TICKER ...]\n"
+    "  --quick      Skip risk analysis and scenario planning\n"
+    "  --hitl       Pause before Synthesizer for analyst approval\n"
+    "  --version    Print the version\n"
+    "  --help       Show this help\n"
+    "Example: python -m sentinel AAPL MSFT GOOG\n"
+)
+_FLAGS = {"--quick", "--hitl"}
+
+
 def main() -> None:
     """Run the Sentinel earnings-analysis pipeline for one or more tickers."""
-    # MCP subcommand — dispatch before argparse touches sys.argv
+    load_dotenv()  # reads .env from the current folder; real environment variables win
+
+    # MCP subcommand — dispatch before touching the other arguments
     if len(sys.argv) > 1 and sys.argv[1] == "mcp":
         run_mcp_server()
         sys.exit(0)
 
     args = sys.argv[1:]
-    quick = "--quick" in args
-    if quick:
-        args.remove("--quick")
-    hitl = "--hitl" in args
-    if hitl:
-        args.remove("--hitl")
+    if "--help" in args or "-h" in args:
+        sys.stdout.write(_USAGE)
+        sys.exit(0)
+    if "--version" in args:
+        sys.stdout.write(f"sentinel {VERSION}\n")
+        sys.exit(0)
 
-    if not args:
-        sys.stderr.write(
-            "Usage: python -m sentinel [--quick] [--hitl] <TICKER> [TICKER ...]\n",
-        )
-        sys.stderr.write("  --quick    Skip risk analysis and scenario planning\n")
-        sys.stderr.write("  --hitl     Pause before Synthesizer for analyst approval\n")
-        sys.stderr.write("Example: python -m sentinel AAPL MSFT GOOG\n")
+    unknown = [a for a in args if a.startswith("-") and a not in _FLAGS]
+    if unknown:
+        sys.stderr.write(f"Unknown option: {unknown[0]}\n{_USAGE}")
+        sys.exit(2)
+
+    quick = "--quick" in args
+    hitl = "--hitl" in args
+    names = [a for a in args if a not in _FLAGS]
+
+    if not names:
+        sys.stderr.write(_USAGE)
         sys.exit(1)
 
-    tickers = [t.upper() for t in args]
+    try:
+        tickers = [validate_ticker(t) for t in names]
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        sys.exit(2)
 
     logging.basicConfig(
         level=logging.INFO,
