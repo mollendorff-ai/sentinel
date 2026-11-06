@@ -38,7 +38,7 @@ def _write_risk(risk_analysis: dict[str, Any]) -> None:
         p10_str = f"P10 ${p10:,.0f}M" if p10 is not None else ""
         p90_str = f"P90 ${p90:,.0f}M" if p90 is not None else ""
         range_str = " / ".join(filter(None, [p10_str, p90_str]))
-        line = f"{_INDENT}Risk P50:         ${p50:,.0f}M"
+        line = f"{_INDENT}Op. income P50:   ${p50:,.0f}M"
         if range_str:
             line += f"  ({range_str})"
         sys.stdout.write(f"{line}\n")
@@ -68,7 +68,7 @@ def show_draft_summary(state: dict[str, Any]) -> None:
     Parameters
     ----------
     state
-        Current pipeline state values from ``graph.get_state(config).values``.
+        Current pipeline state values from ``(await graph.aget_state(config)).values``.
 
     """
     raw_data = state.get("raw_data", {})

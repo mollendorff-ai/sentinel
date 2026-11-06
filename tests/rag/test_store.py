@@ -1,4 +1,4 @@
-"""Tests for sentinel.rag.store — all Qdrant interactions are mocked."""
+"""Tests for sentinel.rag.store, run against a real on-disk Qdrant (no mocks of Qdrant)."""
 
 from __future__ import annotations
 
@@ -6,272 +6,163 @@ import uuid
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
 import pytest
 
 from sentinel.rag.store import (
     COLLECTION_NAME,
+    _period_key,
     _point_id,
-    _to_text,
     create_store,
     ingest,
     retrieve,
 )
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 _UUID_V5_VERSION = 5
 
-# ── _point_id ────────────────────────────────────────────────────────────────
+
+def _quarter(ticker: str, period: str, revenue: int = 1) -> dict[str, Any]:
+    return {"ticker": ticker, "period": period, "company": ticker, "revenue": revenue}
 
 
 class TestPointId:
     """Tests for the ``_point_id`` helper."""
 
-    def test_point_id_is_stable(self) -> None:
-        """Same ticker+period always produces the same UUID."""
-        assert _point_id("AAPL", "Q1-2025") == _point_id("AAPL", "Q1-2025")
-
-    def test_point_id_differs_by_period(self) -> None:
-        """Different periods produce different UUIDs."""
-        assert _point_id("AAPL", "Q1-2025") != _point_id("AAPL", "Q2-2025")
-
-    def test_point_id_differs_by_ticker(self) -> None:
-        """Different tickers produce different UUIDs."""
-        assert _point_id("AAPL", "Q1-2025") != _point_id("MSFT", "Q1-2025")
+    def test_point_id_is_stable_and_unique(self) -> None:
+        """Same ticker+period is stable; different ones differ."""
+        assert _point_id("AAPL", "Q1 2025") == _point_id("AAPL", "Q1 2025")
+        assert _point_id("AAPL", "Q1 2025") != _point_id("AAPL", "Q2 2025")
+        assert _point_id("AAPL", "Q1 2025") != _point_id("MSFT", "Q1 2025")
 
     def test_point_id_is_uuid5(self) -> None:
         """The returned string is a valid UUID version 5."""
-        result = _point_id("AAPL", "Q1-2025")
-        assert uuid.UUID(result).version == _UUID_V5_VERSION
+        assert uuid.UUID(_point_id("AAPL", "Q1 2025")).version == _UUID_V5_VERSION
 
 
-# ── _to_text ─────────────────────────────────────────────────────────────────
+class TestPeriodKey:
+    """Tests for the period sort key."""
 
+    def test_orders_by_year_then_quarter(self) -> None:
+        """Newer years and later quarters sort higher."""
+        assert _period_key("Q1 2026") > _period_key("Q4 2025")
+        assert _period_key("Q3 2025") > _period_key("Q2 2025")
 
-class TestToText:
-    """Tests for the ``_to_text`` helper."""
+    def test_full_year_sorts_after_its_quarters(self) -> None:
+        """A fiscal-year label sorts after the quarters of the same year."""
+        assert _period_key("FY 2025") > _period_key("Q4 2025")
 
-    def test_to_text_includes_ticker_and_period(self) -> None:
-        """Ticker, period, and company appear in serialised text."""
-        data = {"ticker": "AAPL", "period": "Q1-2025", "company": "Apple"}
-        text = _to_text(data)
-        assert "ticker=AAPL" in text
-        assert "period=Q1-2025" in text
-        assert "company=Apple" in text
-
-    def test_to_text_includes_numeric_fields(self) -> None:
-        """Numeric fields are included in the serialised text."""
-        data = {
-            "ticker": "AAPL",
-            "period": "Q1-2025",
-            "company": "Apple",
-            "revenue": 100_000,
-            "eps": 1.52,
-            "gross_margin": 0.45,
-        }
-        text = _to_text(data)
-        assert "revenue=100000" in text
-        assert "eps=1.52" in text
-        assert "gross_margin=0.45" in text
-
-    def test_to_text_omits_none_fields(self) -> None:
-        """Fields with ``None`` values are excluded from the text."""
-        data = {
-            "ticker": "AAPL",
-            "period": "Q1-2025",
-            "company": "Apple",
-            "revenue": None,
-            "eps": 1.52,
-        }
-        text = _to_text(data)
-        assert "revenue=" not in text
-        assert "eps=1.52" in text
-
-
-# ── create_store ─────────────────────────────────────────────────────────────
+    def test_unknown_label_sorts_last(self) -> None:
+        """A label with no year sorts below any dated period."""
+        assert _period_key("latest") < _period_key("Q1 2000")
 
 
 class TestCreateStore:
     """Tests for ``create_store``."""
 
-    def test_create_store_creates_parent_dirs(self, tmp_path: Path) -> None:
+    def test_creates_parent_dirs(self, tmp_path: Path) -> None:
         """Parent directories are created when they do not exist."""
         deep = tmp_path / "deep" / "nested" / "qdrant"
-        with patch("sentinel.rag.store.QdrantClient") as mock_cls:
-            mock_cls.return_value = MagicMock()
-            create_store(path=deep)
+        create_store(path=deep).close()
         assert deep.exists()
 
-    def test_create_store_uses_env_var(self, tmp_path: Path) -> None:
-        """SENTINEL_QDRANT_PATH env var overrides the default path."""
+    def test_uses_env_var(self, tmp_path: Path) -> None:
+        """SENTINEL_QDRANT_PATH overrides the default path."""
         env_path = str(tmp_path / "env_qdrant")
-        with (
-            patch.dict("os.environ", {"SENTINEL_QDRANT_PATH": env_path}),
-            patch("sentinel.rag.store.QdrantClient") as mock_cls,
-        ):
-            mock_cls.return_value = MagicMock()
-            create_store()
-        mock_cls.assert_called_once_with(path=env_path)
+        with patch.dict("os.environ", {"SENTINEL_QDRANT_PATH": env_path}):
+            create_store().close()
+        assert (tmp_path / "env_qdrant").exists()
 
-    def test_create_store_uses_default_when_no_env(self) -> None:
-        """Without env var, the default path function is used."""
+    def test_uses_default_when_no_env(self, tmp_path: Path) -> None:
+        """Without the env var, the default path function is used."""
         with (
             patch.dict("os.environ", {}, clear=True),
-            patch("sentinel.rag.store._qdrant_path") as mock_path_fn,
-            patch("sentinel.rag.store.QdrantClient") as mock_cls,
+            patch("sentinel.rag.store._qdrant_path", return_value=tmp_path / "default"),
         ):
-            fake_path = MagicMock()
-            mock_path_fn.return_value = fake_path
-            mock_cls.return_value = MagicMock()
-            create_store()
-        mock_cls.assert_called_once_with(path=str(fake_path))
-
-    def test_create_store_returns_client(self, tmp_path: Path) -> None:
-        """The QdrantClient instance is returned."""
-        with patch("sentinel.rag.store.QdrantClient") as mock_cls:
-            mock_client = MagicMock()
-            mock_cls.return_value = mock_client
-            result = create_store(path=tmp_path)
-        assert result is mock_client
+            create_store().close()
+        assert (tmp_path / "default").exists()
 
 
-# ── ingest ───────────────────────────────────────────────────────────────────
+class TestIngestAndRetrieve:
+    """Round trips through a real local Qdrant."""
 
+    def test_round_trip_newest_first(self, tmp_path: Path) -> None:
+        """Stored quarters come back newest first, without the current period."""
+        client = create_store(tmp_path)
+        for period in ("Q2 2025", "Q4 2025", "Q3 2025", "Q1 2026"):
+            assert ingest(client, _quarter("AAPL", period)) is True
+        history = retrieve(client, "AAPL", "Q1 2026")
+        client.close()
+        assert [h["period"] for h in history] == ["Q4 2025", "Q3 2025", "Q2 2025"]
 
-class TestIngest:
-    """Tests for ``ingest``."""
+    def test_only_returns_the_requested_ticker(self, tmp_path: Path) -> None:
+        """Other companies' quarters are never returned."""
+        client = create_store(tmp_path)
+        ingest(client, _quarter("AAPL", "Q4 2025"))
+        ingest(client, _quarter("MSFT", "Q4 2025"))
+        history = retrieve(client, "AAPL", "Q1 2026")
+        client.close()
+        assert [h["ticker"] for h in history] == ["AAPL"]
 
-    @pytest.fixture
-    def client(self) -> MagicMock:
-        """Return a mock Qdrant client."""
-        return MagicMock()
+    def test_ingest_is_idempotent(self, tmp_path: Path) -> None:
+        """Ingesting the same quarter twice keeps one record, with the latest values."""
+        client = create_store(tmp_path)
+        ingest(client, _quarter("AAPL", "Q4 2025", revenue=1))
+        ingest(client, _quarter("AAPL", "Q4 2025", revenue=2))
+        history = retrieve(client, "AAPL", "Q1 2026")
+        client.close()
+        assert len(history) == 1
+        assert history[0]["revenue"] == 2  # noqa: PLR2004
 
-    @pytest.fixture
-    def sample_data(self) -> dict[str, Any]:
-        """Return sample earnings data for AAPL Q1-2025."""
-        return {
-            "ticker": "AAPL",
-            "period": "Q1-2025",
-            "company": "Apple",
-            "revenue": 100_000,
-        }
+    def test_top_k_limits_results(self, tmp_path: Path) -> None:
+        """No more than top_k records are returned."""
+        client = create_store(tmp_path)
+        for period in ("Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025"):
+            ingest(client, _quarter("AAPL", period))
+        history = retrieve(client, "AAPL", "Q1 2026", top_k=2)
+        client.close()
+        assert [h["period"] for h in history] == ["Q4 2025", "Q3 2025"]
 
-    def test_ingest_calls_add_with_correct_args(
+    def test_retrieve_before_any_ingest_is_empty(self, tmp_path: Path) -> None:
+        """A store with no collection yet returns no history."""
+        client = create_store(tmp_path)
+        assert retrieve(client, "AAPL", "Q1 2026") == []
+        client.close()
+
+    def test_store_survives_reopen(self, tmp_path: Path) -> None:
+        """History written by one client is read by the next, as across two runs."""
+        first = create_store(tmp_path)
+        ingest(first, _quarter("AAPL", "Q4 2025"))
+        first.close()
+        second = create_store(tmp_path)
+        history = retrieve(second, "AAPL", "Q1 2026")
+        second.close()
+        assert len(history) == 1
+
+    @pytest.mark.parametrize("data", [{"ticker": "AAPL"}, {"period": "Q1 2026"}, {}])
+    def test_ingest_skips_missing_ticker_or_period(
         self,
-        client: MagicMock,
-        sample_data: dict[str, Any],
+        tmp_path: Path,
+        data: dict[str, Any],
     ) -> None:
-        """Ingest calls client.add with the expected collection, doc, and id."""
-        ingest(client, sample_data)
-        client.add.assert_called_once()
-        call_kwargs = client.add.call_args[1]
-        assert call_kwargs["collection_name"] == COLLECTION_NAME
-        assert "AAPL" in call_kwargs["documents"][0]
-        assert call_kwargs["ids"] == [_point_id("AAPL", "Q1-2025")]
+        """A record without ticker or period is skipped."""
+        client = create_store(tmp_path)
+        assert ingest(client, data) is False
+        client.close()
 
-    def test_ingest_is_idempotent_for_same_period(
-        self,
-        client: MagicMock,
-        sample_data: dict[str, Any],
-    ) -> None:
-        """Ingesting the same data twice produces the same point id."""
-        ingest(client, sample_data)
-        first_id = client.add.call_args[1]["ids"][0]
-        ingest(client, sample_data)
-        second_id = client.add.call_args[1]["ids"][0]
-        assert first_id == second_id
+    def test_ingest_returns_false_when_qdrant_raises(self) -> None:
+        """Ingest degrades to False instead of raising."""
+        client = MagicMock()
+        client.collection_exists.side_effect = RuntimeError("boom")
+        assert ingest(client, _quarter("AAPL", "Q1 2026")) is False
 
-    def test_ingest_returns_true_on_success(
-        self,
-        client: MagicMock,
-        sample_data: dict[str, Any],
-    ) -> None:
-        """Successful ingest returns True."""
-        assert ingest(client, sample_data) is True
+    def test_retrieve_returns_empty_when_qdrant_raises(self) -> None:
+        """Retrieve degrades to an empty list instead of raising."""
+        client = MagicMock()
+        client.collection_exists.side_effect = RuntimeError("boom")
+        assert retrieve(client, "AAPL", "Q1 2026") == []
 
-    def test_ingest_returns_false_when_add_raises(
-        self,
-        client: MagicMock,
-        sample_data: dict[str, Any],
-    ) -> None:
-        """Ingest returns False when client.add raises."""
-        client.add.side_effect = RuntimeError("boom")
-        assert ingest(client, sample_data) is False
-
-    def test_ingest_returns_false_for_missing_ticker(self, client: MagicMock) -> None:
-        """Ingest returns False when ticker is missing from data."""
-        assert ingest(client, {"period": "Q1-2025"}) is False
-
-    def test_ingest_returns_false_for_missing_period(self, client: MagicMock) -> None:
-        """Ingest returns False when period is missing from data."""
-        assert ingest(client, {"ticker": "AAPL"}) is False
-
-
-# ── retrieve ─────────────────────────────────────────────────────────────────
-
-
-class TestRetrieve:
-    """Tests for ``retrieve``."""
-
-    @pytest.fixture
-    def client(self) -> MagicMock:
-        """Return a mock Qdrant client."""
-        return MagicMock()
-
-    def _make_hit(self, metadata: dict[str, Any]) -> MagicMock:
-        """Create a mock query-response hit with the given metadata."""
-        hit = MagicMock()
-        hit.metadata = metadata
-        return hit
-
-    def test_retrieve_returns_historical_records_excluding_current(
-        self,
-        client: MagicMock,
-    ) -> None:
-        """Current period is excluded from results."""
-        client.query.return_value = [
-            self._make_hit({"ticker": "AAPL", "period": "Q4-2024"}),
-            self._make_hit({"ticker": "AAPL", "period": "Q1-2025"}),
-            self._make_hit({"ticker": "AAPL", "period": "Q3-2024"}),
-        ]
-        results = retrieve(client, "AAPL", "Q1-2025")
-        periods = [r["period"] for r in results]
-        assert "Q1-2025" not in periods
-        assert "Q4-2024" in periods
-        assert "Q3-2024" in periods
-
-    def test_retrieve_respects_top_k(self, client: MagicMock) -> None:
-        """Results are capped at the requested top_k."""
-        client.query.return_value = [
-            self._make_hit({"ticker": "AAPL", "period": f"Q{i}-2024"}) for i in range(1, 6)
-        ]
-        top_k = 2
-        results = retrieve(client, "AAPL", "Q1-2025", top_k=top_k)
-        assert len(results) <= top_k
-
-    def test_retrieve_returns_empty_on_query_exception(self, client: MagicMock) -> None:
-        """Retrieve returns an empty list when query raises."""
-        client.query.side_effect = RuntimeError("no collection")
-        results = retrieve(client, "AAPL", "Q1-2025")
-        assert results == []
-
-    def test_retrieve_calls_query_with_collection_name(self, client: MagicMock) -> None:
-        """The correct collection name is passed to client.query."""
-        client.query.return_value = []
-        retrieve(client, "AAPL", "Q1-2025")
-        call_kwargs = client.query.call_args[1]
-        assert call_kwargs["collection_name"] == COLLECTION_NAME
-
-    def test_retrieve_returns_empty_when_no_history(self, client: MagicMock) -> None:
-        """An empty query response yields an empty result list."""
-        client.query.return_value = []
-        results = retrieve(client, "AAPL", "Q1-2025")
-        assert results == []
-
-    def test_retrieve_handles_hit_without_metadata_attr(self, client: MagicMock) -> None:
-        """Hits without a metadata attribute return empty dicts."""
-        hit = MagicMock(spec=[])  # no attributes at all
-        client.query.return_value = [hit]
-        results = retrieve(client, "AAPL", "Q1-2025")
-        assert results == [{}]
+    def test_collection_name_is_stable(self) -> None:
+        """The collection name is part of the on-disk format."""
+        assert COLLECTION_NAME == "earnings"

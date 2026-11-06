@@ -412,3 +412,52 @@ async def test_modeler_node_handles_llm_correction_exception_in_loop() -> None:
         result = await modeler_node(state)
 
     assert "error" in result["forge_results"]
+
+
+def _text(payload: str) -> list[dict[str, str]]:
+    return [{"type": "text", "text": payload}]
+
+
+async def test_modeler_survives_plain_text_validation_failure() -> None:
+    """Forge answers a failed validation with plain text; the loop must correct, not crash."""
+    state: dict[str, Any] = {"ticker": "AAPL", "raw_data": {"revenue": 100}}
+    first = AsyncMock()
+    first.content = "bad yaml"
+    second = AsyncMock()
+    second.content = "good yaml"
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(side_effect=[first, second])
+
+    mock_validate = MagicMock()
+    mock_validate.name = "forge_validate"
+    mock_validate.ainvoke = AsyncMock(
+        side_effect=[
+            _text("Validation failed: unknown field `inputs`"),
+            _text(json.dumps({"tables_valid": True, "scalars_valid": True})),
+        ],
+    )
+    mock_calculate = MagicMock()
+    mock_calculate.name = "forge_calculate"
+    mock_calculate.ainvoke = AsyncMock(
+        return_value=_text(json.dumps({"scalars": {"inputs.revenue": 100}})),
+    )
+
+    with (
+        patch("sentinel.agents.modeler.get_llm", return_value=mock_llm),
+        patch(
+            "sentinel.agents.modeler.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=[mock_validate, mock_calculate],
+        ),
+    ):
+        result = await modeler_node(state)
+
+    correction_prompt = mock_llm.ainvoke.call_args_list[1].args[0]
+    assert "unknown field `inputs`" in correction_prompt
+    assert result["forge_results"]["inputs.revenue"] == EXPECTED_REVENUE_SMALL
+
+
+def test_parse_calc_results_reports_plain_text_failure() -> None:
+    """A plain-text calculate failure becomes an error dict, not an exception."""
+    results = _parse_calc_results("Calculation failed: bad formula")
+    assert results["error"].startswith("forge_calculate failed: Calculation failed")

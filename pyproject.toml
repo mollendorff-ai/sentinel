@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sentinel"
-version = "0.7.0"
+version = "0.8.1"
 description = "Multi-agent earnings analysis — LangGraph agents with Forge + Qdrant RAG"
 license = "MIT"
 requires-python = ">=3.11"
@@ -15,8 +15,9 @@ dependencies = [
     "langchain-core>=0.3",
     "langsmith>=0.3",
     "langgraph-checkpoint-sqlite>=2.0",
-    "qdrant-client[fastembed]>=1.9",
+    "qdrant-client>=1.10",
     "mcp>=1.26",
+    "python-dotenv>=1.0",
 ]
 
 [project.scripts]
@@ -52,6 +53,7 @@ ignore = [
     "D213",   # incompatible with D212 (multi-line summary first line)
     "COM812", # trailing comma — conflicts with ruff formatter
     "ISC001", # implicit string concat — conflicts with ruff formatter
+    "CPY001", # copyright notice — not used in this project
 ]
 
 [tool.ruff.lint.per-file-ignores]

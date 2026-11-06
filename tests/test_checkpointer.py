@@ -12,12 +12,12 @@ from sentinel.checkpointer import DEFAULT_DB_PATH, create_checkpointer
 
 
 def test_create_checkpointer_returns_context_manager(tmp_path: Path) -> None:
-    """Verify factory calls SqliteSaver.from_conn_string with the DB path."""
+    """Verify factory calls AsyncSqliteSaver.from_conn_string with the DB path."""
     mock_saver = MagicMock()
     db_path = tmp_path / "test" / "checkpoints.db"
 
     with patch(
-        "sentinel.checkpointer.SqliteSaver",
+        "sentinel.checkpointer.AsyncSqliteSaver",
     ) as mock_cls:
         mock_cls.from_conn_string.return_value = mock_saver
         result = create_checkpointer(db_path=db_path)
@@ -31,7 +31,7 @@ def test_create_checkpointer_creates_parent_dirs(tmp_path: Path) -> None:
     db_path = tmp_path / "deep" / "nested" / "checkpoints.db"
 
     with patch(
-        "sentinel.checkpointer.SqliteSaver",
+        "sentinel.checkpointer.AsyncSqliteSaver",
     ) as mock_cls:
         mock_cls.from_conn_string.return_value = MagicMock()
         create_checkpointer(db_path=db_path)
@@ -42,7 +42,7 @@ def test_create_checkpointer_creates_parent_dirs(tmp_path: Path) -> None:
 def test_create_checkpointer_uses_default_path() -> None:
     """Verify factory uses DEFAULT_DB_PATH when no argument is provided."""
     with patch(
-        "sentinel.checkpointer.SqliteSaver",
+        "sentinel.checkpointer.AsyncSqliteSaver",
     ) as mock_cls:
         mock_cls.from_conn_string.return_value = MagicMock()
         create_checkpointer()

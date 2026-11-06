@@ -80,7 +80,7 @@ def test_show_draft_summary_includes_risk_p50() -> None:
     with patch("sys.stdout", out):
         show_draft_summary(state)
     output = out.getvalue()
-    assert "Risk P50" in output
+    assert "Op. income P50" in output
     assert "94,200" in output
     assert "88,000" in output
     assert "101,000" in output
@@ -96,7 +96,7 @@ def test_show_draft_summary_skips_risk_with_error() -> None:
     out = io.StringIO()
     with patch("sys.stdout", out):
         show_draft_summary(state)
-    assert "Risk P50" not in out.getvalue()
+    assert "Op. income P50" not in out.getvalue()
 
 
 def test_show_draft_summary_includes_scenarios() -> None:

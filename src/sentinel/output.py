@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sentinel.validation import validate_ticker
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT_DIR = Path("output")
@@ -31,8 +33,11 @@ def write_run_output(
             scenario_analysis.json  (full mode only)
 
     Returns the run directory path.
+
+    Raises ``ValueError`` if the ticker is not a plain ticker symbol, so a crafted
+    value can never write outside *output_dir*.
     """
-    ticker = state.get("ticker", "UNKNOWN")
+    ticker = validate_ticker(state.get("ticker") or "UNKNOWN")
     timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
     run_dir = output_dir / ticker / timestamp
     run_dir.mkdir(parents=True, exist_ok=True)

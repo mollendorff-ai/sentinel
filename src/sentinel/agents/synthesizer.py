@@ -43,7 +43,7 @@ Rules:
 - Do NOT invent, estimate, or hallucinate any numbers.
 - If a metric is unavailable, say so -- do not fill in approximate figures.
 - Format monetary values with $ and appropriate units (e.g. $94.8B, $1.2M).
-- Format percentages with %% sign (e.g. 45.2%%).
+- Format percentages with a % sign (e.g. 45.2%).
 - Be direct and factual -- this is for an investment professional.
 """
 

@@ -13,16 +13,18 @@ from typing import Annotated, Any, Literal
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
+from sentinel import __version__
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
 from sentinel.output import write_run_output
 from sentinel.rag.store import create_store, ingest
+from sentinel.validation import validate_ticker
 
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP("sentinel")
 
-_VERSION = "0.8.0"
+_VERSION = __version__
 _INTERRUPT_BEFORE = ["synthesizer"]
 
 
@@ -43,14 +45,14 @@ async def sentinel_analyze(
     state for analyst review. Call sentinel_resume to approve or reject and generate
     the brief.
     """
-    ticker = ticker.upper()
+    ticker = validate_ticker(ticker)
     thread_id = f"{ticker}-{datetime.now(tz=UTC).strftime('%Y%m%d-%H%M%S')}"
 
     if ctx:
         await ctx.report_progress(0, 5)
 
     try:
-        with create_checkpointer() as checkpointer:
+        async with create_checkpointer() as checkpointer:
             graph = compile_graph(
                 checkpointer=checkpointer,
                 interrupt_before=_INTERRUPT_BEFORE,
@@ -80,7 +82,7 @@ async def sentinel_analyze(
                         await ctx.info(f"  [{node_name}] complete")
                         await ctx.report_progress(step, total)
 
-            snapshot = graph.get_state(config)
+            snapshot = await graph.aget_state(config)
 
     except Exception as exc:
         logger.exception("sentinel_analyze failed for %s", ticker)
@@ -108,7 +110,10 @@ def _try_ingest(state: dict[str, Any], thread_id: str) -> None:
         return
     try:
         store = create_store()
-        ingest(store, raw_data)
+        try:
+            ingest(store, raw_data)
+        finally:
+            store.close()
     except (OSError, RuntimeError):
         logger.warning("Qdrant ingest failed for thread %s (non-fatal)", thread_id)
 
@@ -138,7 +143,7 @@ async def sentinel_resume(
         raise ValueError(msg)
 
     try:
-        with create_checkpointer() as checkpointer:
+        async with create_checkpointer() as checkpointer:
             graph = compile_graph(
                 checkpointer=checkpointer,
                 interrupt_before=_INTERRUPT_BEFORE,
@@ -160,7 +165,7 @@ async def sentinel_resume(
                     if ctx:
                         await ctx.info(f"  [{node_name}] complete")
 
-            snapshot = graph.get_state(config)
+            snapshot = await graph.aget_state(config)
             state = dict(snapshot.values)
 
             output_dir = write_run_output(state)

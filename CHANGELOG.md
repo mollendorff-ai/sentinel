@@ -3,6 +3,33 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.1] - 2026-11-05
+
+Makes the pipeline run end to end against Forge 10.0.0-beta.11. Before this, the CLI and the MCP server crashed on the first run, and the risk and scenario steps always failed.
+
+### Fixed
+
+- **Crash on every run:** the synchronous SQLite checkpointer was used inside an async pipeline. Now `AsyncSqliteSaver` with `aget_state` (CLI and MCP server). A test now runs the graph against the real checkpointer.
+- **Forge failures crashed the agents:** Forge returns plain text on errors; agents now report `"<tool> failed: ..."` instead of raising `JSONDecodeError`.
+- **Risk and scenario steps always failed:** the LLM-written YAML used shapes Forge no longer accepts. The sections are now built in code (`sentinel.tools.risk_models`) in the beta.11 shape, validated by Forge, and tested against the real binary. Scenario names are lowercase (`bull`, `base`, `bear`).
+- **History store:** `qdrant-client` removed `add()`/`query()` and the embedding model could not be downloaded. History is now a local Qdrant collection filtered by ticker ([ADR-009](docs/adr/009-qdrant-rag-historical-earnings.md)); no embedding model, no key. Existing `.sentinel/qdrant` data written by the old API is not read.
+- Output folder and thread id are built from a validated ticker (`^[A-Z][A-Z0-9.-]{0,9}$`), closing a path traversal through the ticker.
+- `.env` is loaded automatically; `--help` and `--version` work; unknown options are refused; the version is read from the package metadata.
+- Synthesizer prompt printed `%%` for `%`.
+- Qdrant clients are closed after use (a second client on the same folder raised an error).
+
+### Changed
+
+- Risk and scenario assumptions are fixed and now stated in the output: inputs vary by 10%; scenarios move revenue by ±10% with cost of revenue and net income, operating expenses fixed. They describe those assumptions, not the company's real uncertainty.
+- Lint config lives in `pyproject.toml`; CI and `make lint` run `ruff check .`.
+- README corrected: no DCF, no "zero hallucinated numbers", a status and limits section.
+
+### Not changed
+
+- The 0.9.0 security items (prompt-injection defence, per-agent tool scoping, absolute binary paths, `sentinel_resume` thread check) are still open.
+- The default data source is still two Macrotrends pages, whose terms restrict automated access.
+- Not run against live data or a real LLM by the maintainer after these fixes.
+
 ## [0.8.0] - 2026-02-27
 
 Sentinel as MCP server: `sentinel_analyze` + `sentinel_resume` tools.

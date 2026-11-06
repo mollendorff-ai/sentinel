@@ -47,7 +47,10 @@ async def retriever_node(state: SentinelState) -> dict[str, Any]:
 
     try:
         client = create_store()
-        history = retrieve(client, ticker, period)
+        try:
+            history = retrieve(client, ticker, period)
+        finally:
+            client.close()
     except Exception:
         logger.exception("Retriever agent: Qdrant unavailable for %s", ticker)
         return {"historical_context": []}

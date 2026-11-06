@@ -26,11 +26,15 @@ $(VENV)/bin/activate:
 .PHONY: lint
 lint: ## Run ruff format check + lint (ALL rules)
 	$(VENV)/bin/ruff format --check .
-	$(VENV)/bin/ruff check --select ALL .
+	$(VENV)/bin/ruff check .
 
 .PHONY: test
-test: ## Run full test suite with coverage (100% required)
-	$(PYTHON) -m pytest --cov=src/sentinel --cov-fail-under=100 -q
+test: ## Run unit tests with coverage (100% required; no Forge, Ref or API key needed)
+	$(PYTHON) -m pytest -m "not integration" --cov=src/sentinel --cov-fail-under=100 -q
+
+.PHONY: test-integration
+test-integration: ## Run integration tests (needs forge and ref on PATH)
+	$(PYTHON) -m pytest -m integration --no-cov -q
 
 .PHONY: check
 check: lint test ## Run all quality gates (lint + test)
@@ -38,11 +42,11 @@ check: lint test ## Run all quality gates (lint + test)
 # ── Demo ──────────────────────────────────────────────────────────
 
 .PHONY: demo
-demo: ## Run full 5-agent analysis (TICKER="AAPL" or "AAPL MSFT")
+demo: ## Run full 6-agent analysis (TICKER="AAPL" or "AAPL MSFT")
 	$(PYTHON) -m sentinel $(TICKER)
 
 .PHONY: demo-quick
-demo-quick: ## Run quick 3-agent analysis (skip risk + scenarios)
+demo-quick: ## Run quick analysis (skip risk + scenarios)
 	$(PYTHON) -m sentinel --quick $(TICKER)
 
 # ── Cleanup ───────────────────────────────────────────────────────
