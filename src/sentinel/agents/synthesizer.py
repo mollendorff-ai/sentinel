@@ -1,4 +1,4 @@
-"""Synthesizer agent -- produces an executive brief from Forge results."""
+"""Synthesizer agent -- writes the brief from Forge's results."""
 
 from __future__ import annotations
 
@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SYNTHESIS_PROMPT = """\
-You are an investment analyst writing an executive brief.
+You are a financial analyst writing a short, factual brief for a demonstration
+of Forge in an AI pipeline.  It is not investment advice: give no recommendation,
+price target or forecast.
 
 COMPANY: {ticker}
 PERIOD: {period}
@@ -29,22 +31,23 @@ FORGE CALCULATION RESULTS (deterministic -- these are the authoritative numbers)
 {history_section}\
 {feedback_section}\
 
-Write a concise executive brief ({word_range} words) with these sections:
+Write a concise brief ({word_range} words) with these sections, in this order:
 
-1. **Overview** -- One sentence on the company and reporting period.
-2. **Key Financials** -- Revenue, gross profit, operating income, margins.
-   CRITICAL: Use ONLY numbers from the Forge calculation results above.
-   Every number must trace back to a specific Forge output field.
-3. **Margin Analysis** -- Gross margin, operating margin, trends if data allows.
+- **Overview** -- One sentence on the company and reporting period.
+- **Key Financials** -- Revenue, gross profit, operating income, margins.
+  CRITICAL: Use ONLY numbers from the Forge calculation results above.
+  Every number must trace back to a specific Forge output field.
+- **Margin Analysis** -- Gross margin, operating margin, trends if data allows.
 {extra_sections}\
-4. **Assessment** -- Strengths, concerns, and a one-line outlook.
+- **Assessment** -- Strengths and concerns these numbers show. No outlook or forecast.
 
 Rules:
 - Do NOT invent, estimate, or hallucinate any numbers.
 - If a metric is unavailable, say so -- do not fill in approximate figures.
 - Format monetary values with $ and appropriate units (e.g. $94.8B, $1.2M).
 - Format percentages with a % sign (e.g. 45.2%).
-- Be direct and factual -- this is for an investment professional.
+- Be direct and factual.  Say that risk ranges and scenarios describe the stated
+  assumptions, not the company's real uncertainty.
 """
 
 _RISK_DATA = """
@@ -53,8 +56,8 @@ RISK ANALYSIS (Monte Carlo + Sensitivity):
 """
 
 _RISK_SECTIONS = """\
-5. **Risk Profile** -- P10/P50/P90 ranges for key metrics from Monte Carlo. \
-Top risk drivers from sensitivity (tornado) analysis. Margin of safety.
+- **Risk Profile** -- P10/P50/P90 ranges for key metrics from Monte Carlo. \
+Top risk drivers from sensitivity (tornado) analysis. Break-even revenue.
 """
 
 _SCENARIO_DATA = """
@@ -63,17 +66,17 @@ SCENARIO ANALYSIS (Bull / Base / Bear):
 """
 
 _SCENARIO_SECTIONS = """\
-6. **Scenario Comparison** -- Bull/base/bear outcomes with probabilities. \
+- **Scenario Comparison** -- Bull/base/bear outcomes with probabilities. \
 Expected value across scenarios. Key break-even thresholds.
 """
 
 _HISTORY_DATA = """
-HISTORICAL EARNINGS (past quarters from RAG store, most relevant first):
+HISTORICAL EARNINGS (earlier periods from earlier runs, newest first):
 {history_json}
 """
 
 _HISTORY_SECTIONS = """\
-{section_num}. **Historical Trend Analysis** -- Revenue trajectory over prior quarters. \
+- **Historical Trend Analysis** -- Revenue trajectory over prior quarters. \
 Margin expansion or compression trend. EPS progression. Year-over-year comparison \
 with current quarter vs. prior year same period if available.
 """
@@ -152,8 +155,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         history_section = _HISTORY_DATA.format(
             history_json=json.dumps(historical_context, indent=2),
         )
-        section_num = 4 + int(has_risk) + int(has_scenarios)
-        extra_sections += _HISTORY_SECTIONS.format(section_num=section_num)
+        extra_sections += _HISTORY_SECTIONS
 
     analyst_feedback = state.get("analyst_feedback", "")
     feedback_section = (
@@ -165,7 +167,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
     # Remove raw_output from forge_results for the prompt (verbose)
     forge_clean = {k: v for k, v in forge_results.items() if k != "raw_output"}
 
-    llm = get_llm()
+    llm = get_llm(role="synthesizer")
     prompt = SYNTHESIS_PROMPT.format(
         ticker=ticker,
         period=raw_data.get("period", "Unknown"),

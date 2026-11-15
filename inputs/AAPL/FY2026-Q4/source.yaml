@@ -1,0 +1,14 @@
+# Where this input came from (ADR-012). release.htm is the filing as downloaded;
+# release.md is made from it by scripts/html_to_markdown.py and is what a run reads.
+company: Apple Inc.
+document: Form 8-K, Exhibit 99.1 (press release), fourth quarter of fiscal 2026
+quarter_ended: 2026-09-26
+filed: 2026-11-02
+url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/a8-kex991q4202609262026.htm
+saved_on: 2026-11-15
+saved_with: >-
+  curl with the declared user agent "Mollendorff AI Sentinel security@mollendorff.ai",
+  as SEC EDGAR's fair-access policy asks (Ref 1.8.4 was refused: it cannot declare one)
+sha256:
+  release.htm: 1fb44ce95cffabe5a89b7c987d9029b63a3b7ac7d43ffa9851d6135292104f06
+  release.md: bb1d991270418e54449f3fa30046a7f785aa3469c387caaedda92df48bb60a8e

@@ -1,4 +1,4 @@
-"""Risk and scenario nodes against the real Forge binary (needs ``forge`` on PATH)."""
+"""Risk and scenario nodes against the real, pinned Forge binary (needs ``forge`` on PATH)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ pytestmark = [
     pytest.mark.skipif(shutil.which("forge") is None, reason="forge not on PATH"),
 ]
 
-MODEL = """\
+MODEL_5_0 = """\
 _forge_version: "5.0.0"
 inputs:
   revenue:
@@ -41,15 +41,31 @@ outputs:
     formula: "=outputs.operating_income / inputs.revenue"
 """
 
+MODEL_5_1 = """\
+_forge_version: "5.1.0"
+inputs:
+  revenue: 94800
+  cost_of_revenue: 42000
+  operating_expenses: 14500
+  net_income: 24000
+outputs:
+  gross_profit: {formula: "=inputs.revenue - inputs.cost_of_revenue"}
+  operating_income: {formula: "=outputs.gross_profit - inputs.operating_expenses"}
+  operating_margin: {formula: "=outputs.operating_income / inputs.revenue"}
+"""
+
+both_formats = pytest.mark.parametrize("model", [MODEL_5_1, MODEL_5_0], ids=["5.1.0", "5.0.0"])
+
 BASE_OPERATING_INCOME = 38300
 REVENUE_SWING = 18960
 BEAR_OPERATING_INCOME = 33020
 BULL_OPERATING_INCOME = 43580
 
 
-async def test_risk_analyst_with_real_forge() -> None:
+@both_formats
+async def test_risk_analyst_with_real_forge(model: str) -> None:
     """Monte Carlo, tornado and break-even all return real numbers."""
-    state = {"ticker": "TEST", "model_yaml": MODEL, "forge_results": {}}
+    state = {"ticker": "TEST", "model_yaml": model, "forge_results": {}}
     out = (await risk_analyst_node(state))["risk_analysis"]  # type: ignore[arg-type]
     assert "error" not in out["monte_carlo"]
     assert out["monte_carlo"]["p10"] < out["monte_carlo"]["p50"] < out["monte_carlo"]["p90"]
@@ -58,9 +74,10 @@ async def test_risk_analyst_with_real_forge() -> None:
     assert out["break_even"]["converged"] is True
 
 
-async def test_scenario_planner_with_real_forge() -> None:
+@both_formats
+async def test_scenario_planner_with_real_forge(model: str) -> None:
     """Bull / base / bear come back with the expected operating income."""
-    state = {"ticker": "TEST", "model_yaml": MODEL, "forge_results": {}}
+    state = {"ticker": "TEST", "model_yaml": model, "forge_results": {}}
     out = (await scenario_planner_node(state))["scenario_analysis"]  # type: ignore[arg-type]
     by_name = {s["name"]: s["operating_income"] for s in out["scenarios"]}
     assert by_name == {

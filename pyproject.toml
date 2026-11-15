@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "sentinel"
 version = "0.8.1"
-description = "Multi-agent earnings analysis — LangGraph agents with Forge + Qdrant RAG"
+description = "A demonstration of Forge in an AI pipeline: LangGraph agents, Forge as the only calculator"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,7 +15,6 @@ dependencies = [
     "langchain-core>=0.3",
     "langsmith>=0.3",
     "langgraph-checkpoint-sqlite>=2.0",
-    "qdrant-client>=1.10",
     "mcp>=1.26",
     "python-dotenv>=1.0",
 ]
@@ -37,9 +36,10 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 markers = [
-    "integration: requires external binaries (forge, ref)",
+    "integration: requires the forge binary on PATH",
 ]
 
 [tool.ruff]
@@ -59,6 +59,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
     "S101",  # assert is pytest's core API — no alternative
+]
+"scripts/*.py" = [
+    "INP001",  # standalone scripts, not a package
 ]
 
 [tool.coverage.run]

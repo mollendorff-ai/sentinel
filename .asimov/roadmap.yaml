@@ -1,27 +1,30 @@
 # Sentinel's goal since 2026-11-15 (ADR-012): to be the demonstration of Forge in
 # an AI pipeline (Forge docs/WORKFLOWS.md, roadmap item T2-PIPELINE-DEMO). Every
 # item below serves that, and each acceptance is something observed, not code
-# written: a run in GitHub Actions, figures matching a file a person typed.
+# written: a run in an AI chat, figures matching a file a person checked.
 
 current:
   version: "0.9.0"
-  summary: "Forge demo -- one unattended run on a saved input, recorded in git and reviewed as a pull request"
+  summary: "Forge demo -- one run on a saved input in an AI chat that plays the LLM, recorded in git and reviewed as a pull request"
   deliverables:
     - "[x] ADR-012: Sentinel as Forge's AI-pipeline demonstration; README, project.yaml and this roadmap aligned"
-    - "[ ] Saved input: one quarter of a public company's earnings release from SEC EDGAR (8-K, Exhibit 99.1) in inputs/<TICKER>/<period>/, with its source URL and the date it was saved"
-    - "[ ] expected.yaml beside it: revenue, cost of revenue, operating expenses, net income typed by a person from the filing"
-    - "[ ] Research reads the saved input; the run fails when the extracted figures differ from expected.yaml; Macrotrends URLs removed"
-    - "[ ] Qdrant removed (qdrant-client, src/sentinel/rag, Qdrant tests); the Retriever reads earlier runs' results for the ticker from the repository"
-    - "[ ] Modeler writes the current Forge model format (5.1.0 or newer); the checks follow Forge's own (calculate, then validate)"
-    - "[ ] Forge pinned to a release; CI and the demo install the release binary and verify it against checksums.txt"
-    - "[ ] Integration tests run against that real Forge in CI (no LLM): validate, calculate, simulate, tornado and scenarios on the fixtures"
-    - "[ ] Workflow demo.yml (workflow_dispatch): runs the pipeline with no prompt, commits input, model, Forge results and brief to a branch, opens a pull request"
-    - "[ ] One real run in Actions, its pull request merged; the README links to it"
-    - "[ ] What Forge made hard for a program, written down and reported to Forge as roadmap items"
+    - "[x] Saved input: Apple's Q4 FY2026 earnings release from SEC EDGAR (8-K, Exhibit 99.1) in inputs/AAPL/FY2026-Q4/, the original HTML and the Markdown a run reads, with source URL, date and checksums"
+    - "[ ] expected.yaml beside it: drafted from the filing (revenue 114,477; cost of revenue 59,657; operating expenses 19,189; net income 30,711); a person checks it against the filing and sets checked: true"
+    - "[x] Research reads the saved input; the run fails when the extracted figures differ from expected.yaml; Macrotrends URLs and the Ref client removed"
+    - "[x] Qdrant removed (qdrant-client, src/sentinel/rag, Qdrant tests); the Retriever reads earlier runs' results for the ticker from runs/"
+    - "[x] Modeler writes Forge model format 5.1.0; validate before calculate is kept, since forge validate calculates the model and fails on a broken formula"
+    - "[x] Forge pinned to v10.0.0-rc.26; CI and the demo install the release binary and check it against a checksum recorded in scripts/install-forge.sh"
+    - "[x] Integration tests run against that real Forge in CI (no LLM), including the whole pipeline on the saved input with a scripted LLM: Forge's operating income equals the filing's 35,631"
+    - "[x] ADR-013: the run happens in an AI chat that plays the LLM (SENTINEL_LLM_PROVIDER=chat, prompt and answer files, exit 3 while waiting), no API key; the GitHub Actions demo workflow removed"
+    - "[x] The CLI refuses an unchecked expected.yaml unless --allow-unchecked; a run keeps its prompts and answers in llm/"
+    - "[x] A prompt in the README to paste into a chat: installs Sentinel and the pinned Forge, runs the loop, prints the summary, opens a pull request or prints the files"
+    - "[ ] One real run from that prompt in a chat, on a checked expected.yaml, its pull request merged; the README links to it"
+    - "[ ] What Forge and Ref made hard for a program, reported to them as roadmap items (written down in docs/FINDINGS.md)"
   acceptance: >-
-    The demo workflow has run once in GitHub Actions with no person in the loop, on the saved
-    input; its extracted figures match expected.yaml; its model and results are in git through
-    a merged pull request; and Forge's docs/WORKFLOWS.md links to it (a change in the Forge repo).
+    The README's prompt has run once in an AI chat, started by a person and with no person in
+    the loop after that (ADR-013), on the saved input with a checked expected.yaml; its extracted
+    figures match expected.yaml; its model, results and transcript are in git through a merged
+    pull request; and Forge's docs/WORKFLOWS.md links to it (a change in the Forge repo).
 
 next: []
 

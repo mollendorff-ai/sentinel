@@ -1,9 +1,12 @@
 # ADR-012: Sentinel as Forge's AI-pipeline demonstration
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-013](013-run-in-a-chat.md) on 2026-11-15
 **Date:** 2026-11-15
 **Supersedes:** [ADR-009](009-qdrant-rag-historical-earnings.md) (Qdrant history)
 **Amends:** [ADR-005](005-ref-mcp-over-cli-subprocess.md) (Ref is no longer used in a demo run), [ADR-006](006-five-agent-pipeline.md) (the Retriever reads files, not Qdrant)
+
+> **2026-11-15:** amended by ADR-013. The demo runs in an AI chat, with the chat as the LLM,
+> instead of unattended in GitHub Actions with an API key (decisions 4 and 5 below).
 
 ## Context
 
@@ -79,3 +82,13 @@ investment advice. Each part of it is kept only if it serves the demonstration.
   user would.
 - **Run on the maintainer's computer.** Not possible from an iPhone; Actions also makes every run
   visible.
+
+## Addendum (2026-11-15, 0.9.0): how the first input was saved
+
+SEC EDGAR refuses automated requests that do not declare who is asking: its fair-access policy
+asks for a user agent with a name and a contact email. Ref 1.8.4 was refused ("Undeclared
+Automated Tool") because it has no option to set one. The first input was downloaded once with
+`curl` and the user agent `Mollendorff AI Sentinel security@mollendorff.ai`, the contact already
+published in SECURITY.md, approved by the maintainer. The original HTML is kept beside the
+Markdown made from it (`scripts/html_to_markdown.py`), with both checksums in `source.yaml`, so
+anyone can compare it with the SEC's copy. A user-agent option is a finding to report to Ref.

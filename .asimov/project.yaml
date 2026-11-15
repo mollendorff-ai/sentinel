@@ -7,8 +7,9 @@ description: >
   roadmap item T2-PIPELINE-DEMO). LangGraph agents read one quarter's earnings
   release saved in the repository, an LLM extracts the figures and writes a
   Forge model, Forge validates and calculates it, and the run's model, results
-  and brief are committed for a person to review as a pull request. Not an
-  earnings product and not financial advice.
+  and brief are committed for a person to review as a pull request. A demo run
+  happens in an AI chat that plays the LLM through prompt and answer files, so
+  no API key is needed (ADR-013). Not an earnings product and not financial advice.
 
 stack:
   - python
@@ -17,13 +18,12 @@ stack:
   - langsmith (optional tracing, off by default)
   - forge (the only calculator, a pinned release)
   - sqlite (LangGraph checkpoints)
-  - qdrant (being removed, ADR-012)
-  - ref (not used by a demo run, ADR-012)
+  - SEC EDGAR filings saved in inputs/ (no web access in a run)
 
 conventions:
   - "Every change serves the demonstration (ADR-012); a feature that does not is removed, not kept"
   - "LangGraph for agent orchestration, LangChain for components only"
-  - "Forge via MCP (langchain-mcp-adapters, stdio transport) for every calculation; no arithmetic in agent code or in the LLM. Forge is a pinned release binary verified against its checksums.txt"
+  - "Forge via MCP (langchain-mcp-adapters, stdio transport) for every calculation; no arithmetic in agent code or in the LLM. Forge is the release pinned in scripts/install-forge.sh, its checksum recorded there"
   - "A demo run reads a saved input from inputs/<TICKER>/<period>/ and never fetches the web; extracted figures must match the input's expected.yaml, typed by a person"
   - "A run's record is git: input, model, Forge results and brief committed together, reviewed as a pull request"
   - "History comes from earlier runs' files in the repository, not from a vector store"

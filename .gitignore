@@ -16,6 +16,6 @@ venv/
 # Environment
 .env
 
-# Pipeline output
+# Pipeline state (runs/ is committed on purpose, ADR-012)
 output/
 .sentinel/

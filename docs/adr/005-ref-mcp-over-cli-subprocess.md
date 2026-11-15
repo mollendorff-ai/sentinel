@@ -3,8 +3,8 @@
 **Status:** Accepted, amended by [ADR-012](012-sentinel-as-forge-demo.md) on 2026-11-15
 **Date:** 2026-02-22
 
-> **2026-11-15:** amended by ADR-012. A demo run reads a saved input from the repository, so it
-> does not use Ref. This ADR still describes how Sentinel calls Ref when it does.
+> **2026-11-15:** amended by ADR-012. A demo run reads a saved input from the repository, so 0.9.0
+> removed the Ref client from Sentinel. This ADR describes the 0.2.1 to 0.8.1 design.
 
 ## Context
 
