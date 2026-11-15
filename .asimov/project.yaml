@@ -7,8 +7,9 @@ description: >
   roadmap item T2-PIPELINE-DEMO). LangGraph agents read one quarter's earnings
   release saved in the repository, an LLM extracts the figures and writes a
   Forge model, Forge validates and calculates it, and the run's model, results
-  and brief are committed for a person to review as a pull request. Not an
-  earnings product and not financial advice.
+  and brief are committed for a person to review as a pull request. A demo run
+  happens in an AI chat that plays the LLM through prompt and answer files, so
+  no API key is needed (ADR-013). Not an earnings product and not financial advice.
 
 stack:
   - python

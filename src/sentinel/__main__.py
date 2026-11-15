@@ -21,7 +21,7 @@ from sentinel.approval import prompt_approval, show_draft_summary
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
 from sentinel.handoff import CHAT_PROVIDER
-from sentinel.inputs import validate_period
+from sentinel.inputs import InputError, load_input, validate_period
 from sentinel.llm import PROVIDER_DEFAULTS
 from sentinel.mcp import run_mcp_server
 from sentinel.output import write_run_output
@@ -164,11 +164,29 @@ _USAGE = (
     "  --quick      Skip risk analysis and scenario planning\n"
     "  --hitl       Pause before Synthesizer for analyst approval\n"
     "  --period P   Read inputs/<TICKER>/P/ instead of the newest period\n"
+    "  --allow-unchecked  Run even if expected.yaml is not checked by a person\n"
     "  --version    Print the version\n"
     "  --help       Show this help\n"
     "Example: python -m sentinel AAPL MSFT GOOG\n"
 )
-_FLAGS = {"--quick", "--hitl"}
+_FLAGS = {"--quick", "--hitl", "--allow-unchecked"}
+
+
+def _check_inputs(tickers: list[str], period: str | None, *, allow_unchecked: bool) -> None:
+    """Exit 2 unless every ticker has a saved input whose expected.yaml a person checked."""
+    for ticker in tickers:
+        try:
+            saved = load_input(ticker, period)
+        except InputError as exc:
+            sys.stderr.write(f"{exc}\n")
+            sys.exit(2)
+        if not saved.expected.checked and not allow_unchecked:
+            sys.stderr.write(
+                f"{saved.path}/expected.yaml is not checked by a person (checked: false).\n"
+                "Check its figures against the filing and set checked: true, or pass\n"
+                "--allow-unchecked for a test run (its summary will say it was not checked).\n",
+            )
+            sys.exit(2)
 
 
 def _take_period(args: list[str]) -> tuple[list[str], str | None]:
@@ -224,6 +242,7 @@ def main() -> None:
     except ValueError as exc:
         sys.stderr.write(f"{exc}\n")
         sys.exit(2)
+    _check_inputs(tickers, period, allow_unchecked="--allow-unchecked" in args)
 
     logging.basicConfig(
         level=logging.INFO,

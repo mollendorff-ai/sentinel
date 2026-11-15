@@ -7,16 +7,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Chat mode, no API key** ([ADR-013](docs/adr/013-run-in-a-chat.md)): with `SENTINEL_LLM_PROVIDER=chat`, each LLM step writes its prompt to `.sentinel/chat/<role>-<hash>.prompt.md` and the run stops with exit status 3 until the answer file beside it is written; running again reuses the answers. The AI in a chat plays the LLM. A finished run keeps its prompts and answers in `runs/.../llm/`. The README has the prompt to paste into a chat.
+- **The CLI refuses an unchecked `expected.yaml`** (exit 2) unless given `--allow-unchecked`, and refuses a ticker with no saved input.
 - **A saved input:** `inputs/AAPL/FY2026-Q4/`, Apple's fourth-quarter fiscal 2026 earnings release as filed with the SEC (8-K, Exhibit 99.1): the original HTML, the Markdown a run reads (`scripts/html_to_markdown.py`), `source.yaml` with the url, dates and checksums, and `expected.yaml` with the four headline figures, drafted and waiting for a person to check (`checked: false`).
 - **The expected-figure check:** Research compares what the LLM extracted with `expected.yaml` and stops the run when a figure differs by more than the tolerance (0.5 million).
-- **`.github/workflows/demo.yml`:** started by hand, refuses an unchecked `expected.yaml`, runs Sentinel with no person in the loop, uploads the run folder, commits it to a branch and opens a pull request whose body is `python -m sentinel.summary`.
-- **Forge pinned:** `scripts/install-forge.sh` installs v10.0.0-rc.26 and refuses the download unless its SHA-256 matches the one recorded in the script. A new CI job runs the integration tests against it.
+- **`python -m sentinel.summary`:** a run's figures, the expected-figure check, Forge's results and the brief, as Markdown for a pull request.
+- **Forge pinned:** `scripts/install-forge.sh` installs v10.0.0-rc.26 on Linux x86_64 or aarch64 and refuses the download unless its SHA-256 matches the one recorded in the script. A new CI job runs the integration tests against it.
 - **An end-to-end test** (`tests/graph/test_pipeline_end_to_end.py`): the whole pipeline on the saved input against the real Forge, with a scripted LLM. Forge's operating income equals the filing's, 35,631 million; a misread figure stops the run before any model is built.
-- `--period PERIOD` picks an input other than the newest. `python -m sentinel` exits with 1 when a run fails.
+- `--period PERIOD` picks an input other than the newest. `python -m sentinel` exits with 1 when a run fails, including a brief the Synthesizer could not write.
 - `docs/FINDINGS.md`: what Forge and Ref made hard for a program, to report to them.
 
 ### Removed
 
+- The GitHub Actions demo workflow (`demo.yml`), which needed an API key (ADR-013).
 - Qdrant (`qdrant-client`, `sentinel.rag`): the Retriever reads earlier runs from `runs/`.
 - Live Macrotrends fetching and the Ref MCP client.
 
@@ -26,7 +29,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - The Modeler writes Forge model format 5.1.0. The risk and scenario sections read both 5.1.0 and 5.0.0 inputs, and a Monte Carlo input keeps `value:` beside its formula in 5.0.0, which Forge requires (found by running the real binary).
 - The extraction prompt marks the document as data between delimiters, and asks for figures as printed, without converting units.
 
-- **Sentinel's goal is now to be Forge's AI-pipeline demonstration** ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)), the fourth workflow of Forge's `docs/WORKFLOWS.md` and Forge roadmap item T2-PIPELINE-DEMO. It is no longer an earnings product. A demo run will read a saved SEC earnings release checked against figures a person typed (`expected.yaml`), use Forge as its only calculator, run unattended in GitHub Actions and open a pull request with its model and results.
+- **Sentinel's goal is now to be Forge's AI-pipeline demonstration** ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)), the fourth workflow of Forge's `docs/WORKFLOWS.md` and Forge roadmap item T2-PIPELINE-DEMO. It is no longer an earnings product. A demo run will read a saved SEC earnings release checked against figures a person typed (`expected.yaml`), use Forge as its only calculator, and be reviewed as a pull request with its model and results (where it runs: ADR-013).
 - ADR-009 (Qdrant history) superseded; ADR-005 (Ref) and ADR-006 (pipeline) amended, each with a dated note at the top.
 - README rewritten around the demo, with what 0.8.1 does today kept separate from what 0.9.0 will do.
 - `.asimov/project.yaml`: the description no longer claims "investment-grade briefs with zero hallucinated numbers".

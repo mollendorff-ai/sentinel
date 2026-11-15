@@ -46,6 +46,7 @@ def _patch_cli(mock_graph: MagicMock, run_dir: Path | None = None) -> tuple:
             "sentinel.__main__.write_run_output",
             return_value=run_dir or Path("runs/AAPL/20260222-120000"),
         ),
+        patch("sentinel.__main__._check_inputs"),
     )
 
 
@@ -84,8 +85,8 @@ def test_main_single_ticker(
     result = {"ticker": "AAPL", "brief": "Apple is doing great."}
     mock_graph = _mock_graph(result)
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     out = capsys.readouterr().out
@@ -112,8 +113,8 @@ def test_main_multi_ticker(
     monkeypatch.setattr("sys.argv", ["sentinel", "AAPL", "MSFT"])
     mock_graph = _mock_graph({"ticker": "X", "brief": "Brief."})
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     assert mock_graph.astream.call_count == 2  # noqa: PLR2004
@@ -130,8 +131,8 @@ def test_main_quick_flag(
     monkeypatch.setattr("sys.argv", ["sentinel", "--quick", "AAPL"])
     mock_graph = _mock_graph({"ticker": "AAPL", "brief": "Quick."})
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     out = capsys.readouterr().out
@@ -148,8 +149,8 @@ def test_main_quick_flag_after_ticker(
     monkeypatch.setattr("sys.argv", ["sentinel", "MSFT", "--quick"])
     mock_graph = _mock_graph({"ticker": "MSFT", "brief": "Quick MSFT."})
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     call_args = mock_graph.astream.call_args
@@ -163,8 +164,8 @@ def test_main_tickers_uppercased(
     monkeypatch.setattr("sys.argv", ["sentinel", "aapl"])
     mock_graph = _mock_graph({"ticker": "AAPL", "brief": "Brief."})
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     call_args = mock_graph.astream.call_args
@@ -178,8 +179,8 @@ def test_main_langsmith_config_structure(
     monkeypatch.setattr("sys.argv", ["sentinel", "GOOG"])
     mock_graph = _mock_graph({"ticker": "GOOG", "brief": "Brief."})
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     config = mock_graph.astream.call_args[1]["config"]
@@ -210,6 +211,7 @@ def test_main_calls_write_run_output(
         patch("sentinel.__main__.create_checkpointer", return_value=mock_checkpointer),
         patch("sentinel.__main__.compile_graph", return_value=mock_graph),
         patch("sentinel.__main__.write_run_output", mock_write),
+        patch("sentinel.__main__._check_inputs"),
     ):
         main()
 
@@ -226,8 +228,8 @@ def test_main_hitl_flag_parses(
     # next_nodes=() means no interrupt triggered (graph ran to completion)
     mock_graph = _mock_graph(result, next_nodes=())
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     out = capsys.readouterr().out
@@ -244,11 +246,12 @@ def test_main_hitl_approves_and_resumes(
     # next_nodes=("synthesizer",) triggers the HITL gate
     mock_graph = _mock_graph(result, next_nodes=("synthesizer",))
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
     with (
         p_ckpt,
         p_graph,
         p_output,
+        p_inputs,
         patch("sentinel.__main__.show_draft_summary") as mock_show,
         patch("sentinel.__main__.prompt_approval", return_value=(True, "")),
     ):
@@ -268,11 +271,12 @@ def test_main_hitl_rejects_and_injects_feedback(
     result = {"ticker": "AAPL", "brief": "Brief."}
     mock_graph = _mock_graph(result, next_nodes=("synthesizer",))
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
     with (
         p_ckpt,
         p_graph,
         p_output,
+        p_inputs,
         patch("sentinel.__main__.show_draft_summary"),
         patch(
             "sentinel.__main__.prompt_approval",
@@ -297,13 +301,14 @@ def test_main_hitl_skipped_when_no_flag(
     result = {"ticker": "AAPL", "brief": "Brief."}
     mock_graph = _mock_graph(result)
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
     mock_show = MagicMock()
     mock_prompt = MagicMock()
     with (
         p_ckpt,
         p_graph,
         p_output,
+        p_inputs,
         patch("sentinel.__main__.show_draft_summary", mock_show),
         patch("sentinel.__main__.prompt_approval", mock_prompt),
     ):
@@ -361,8 +366,8 @@ def test_main_streaming_progress_printed(
     }
     mock_graph = _mock_graph(result)
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     out = capsys.readouterr().out
@@ -425,8 +430,8 @@ def test_main_period_passed_to_graph(
     monkeypatch.setattr("sys.argv", ["sentinel", "--period", "FY2026-Q4", "AAPL"])
     mock_graph = _mock_graph({"ticker": "AAPL", "brief": "Brief."})
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs:
         main()
 
     assert mock_graph.astream.call_args[0][0]["period"] == "FY2026-Q4"
@@ -478,8 +483,8 @@ def test_main_exits_1_when_a_run_fails(
     monkeypatch.setattr("sys.argv", ["sentinel", "AAPL"])
     mock_graph = _mock_graph(result)
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output as mock_write, pytest.raises(SystemExit) as exc:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output as mock_write, p_inputs, pytest.raises(SystemExit) as exc:
         main()
 
     assert exc.value.code == 1
@@ -507,8 +512,8 @@ def test_main_waits_for_the_chat_and_exits_3(
 
     mock_graph.astream = MagicMock(side_effect=_astream)
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output as mock_write, pytest.raises(SystemExit) as exc:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output as mock_write, p_inputs, pytest.raises(SystemExit) as exc:
         main()
 
     assert exc.value.code == EXIT_WAITING
@@ -531,8 +536,13 @@ def test_main_keeps_the_chat_transcript(
     monkeypatch.setattr(handoff, "_STORE", store)
     mock_graph = _mock_graph({"ticker": "AAPL", "brief": "Brief."})
 
-    p_ckpt, p_graph, _ = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, patch("sentinel.__main__.write_run_output", return_value=tmp_path):
+    p_ckpt, p_graph, _, p_inputs = _patch_cli(mock_graph)
+    with (
+        p_ckpt,
+        p_graph,
+        p_inputs,
+        patch("sentinel.__main__.write_run_output", return_value=tmp_path),
+    ):
         main()
 
     store.keep.assert_called_once_with(tmp_path)
@@ -547,9 +557,69 @@ def test_main_fails_on_an_incomplete_brief(
     result = {"ticker": "AAPL", "brief": "Analysis incomplete for AAPL: LLM call failed"}
     mock_graph = _mock_graph(result)
 
-    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
-    with p_ckpt, p_graph, p_output, pytest.raises(SystemExit) as exc:
+    p_ckpt, p_graph, p_output, p_inputs = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, p_inputs, pytest.raises(SystemExit) as exc:
         main()
 
     assert exc.value.code == 1
     assert "FAILED: brief: Analysis incomplete" in capsys.readouterr().out
+
+
+def _saved(tmp_path: Path, *, checked: bool) -> None:
+    folder = tmp_path / "inputs" / "AAPL" / "FY2026-Q4"
+    folder.mkdir(parents=True)
+    (folder / "release.md").write_text("doc")
+    (folder / "source.yaml").write_text("url: x\n")
+    (folder / "expected.yaml").write_text(f"checked: {str(checked).lower()}\nfigures:\n  a: 1\n")
+
+
+@pytest.mark.parametrize(
+    ("argv", "checked", "message"),
+    [
+        (["sentinel", "AAPL"], False, "is not checked by a person"),
+        (["sentinel", "MSFT"], True, "No saved input for MSFT"),
+    ],
+)
+def test_main_refuses_an_unchecked_or_missing_input(  # noqa: PLR0913
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    argv: list[str],
+    *,
+    checked: bool,
+    message: str,
+) -> None:
+    """No run starts on an input nobody checked, or on a ticker with no input."""
+    _saved(tmp_path, checked=checked)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", argv)
+    with (
+        patch("sentinel.__main__.compile_graph") as mock_compile,
+        pytest.raises(SystemExit) as exc,
+    ):
+        main()
+    assert exc.value.code == 2  # noqa: PLR2004
+    assert message in capsys.readouterr().err
+    mock_compile.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("argv", "checked"),
+    [(["sentinel", "--allow-unchecked", "AAPL"], False), (["sentinel", "AAPL"], True)],
+)
+def test_main_runs_a_checked_input_or_with_allow_unchecked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    argv: list[str],
+    *,
+    checked: bool,
+) -> None:
+    """A checked input runs; an unchecked one runs only with --allow-unchecked."""
+    _saved(tmp_path, checked=checked)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", argv)
+    mock_graph = _mock_graph({"ticker": "AAPL", "brief": "Brief."})
+    p_ckpt, p_graph, p_output, _ = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output:
+        main()
+    assert mock_graph.astream.call_count == 1
