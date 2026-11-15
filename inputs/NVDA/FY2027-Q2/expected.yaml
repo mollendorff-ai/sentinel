@@ -1,0 +1,22 @@
+# The figures a run's extraction must match (ADR-012), from the condensed
+# consolidated statements of income, three months ended July 26, 2026 (GAAP),
+# in millions of US dollars. The release also prints non-GAAP figures; these are
+# the GAAP ones.
+#
+# Drafted by Claude from release.md (lines 99 to 110) on 2026-11-15. Checked by the
+# maintainer, the four figures and the two subtotals against the filing at the url
+# in source.yaml, on 2026-11-15.
+# With checked: true, python -m sentinel refuses to run (ADR-013).
+checked: true
+tolerance: 0.5
+figures:
+  revenue: 96221            # Revenue
+  cost_of_revenue: 24079    # Cost of revenue
+  operating_expenses: 8408  # Total operating expenses
+  net_income: 59688         # Net income
+
+# The subtotals the same statement prints, which Forge must calculate from the
+# figures above (ADR-014).
+results:
+  outputs.gross_profit: 72142      # Gross profit
+  outputs.operating_income: 63734  # Operating income

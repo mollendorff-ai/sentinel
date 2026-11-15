@@ -1,0 +1,66 @@
+{
+  "monte_carlo": {
+    "output": "outputs.operating_income",
+    "iterations": 10000,
+    "mean": 63734.011285795,
+    "std_dev": 9952.32791099714,
+    "p10": 50781.8804187276,
+    "p50": 63723.9179473291,
+    "p90": 76416.458805981
+  },
+  "tornado": {
+    "output": "outputs.operating_income",
+    "base_value": 63734.0,
+    "bars": [
+      {
+        "input_name": "inputs.revenue",
+        "output_at_low": 54111.9,
+        "output_at_high": 73356.1,
+        "swing": 19244.2,
+        "abs_swing": 19244.2,
+        "input_low": 86598.9,
+        "input_high": 105843.1
+      },
+      {
+        "input_name": "inputs.cost_of_revenue",
+        "output_at_low": 66141.9,
+        "output_at_high": 61326.1,
+        "swing": -4815.79999999999,
+        "abs_swing": 4815.79999999999,
+        "input_low": 21671.1,
+        "input_high": 26486.9
+      },
+      {
+        "input_name": "inputs.operating_expenses",
+        "output_at_low": 64574.8,
+        "output_at_high": 62893.2,
+        "swing": -1681.60000000001,
+        "abs_swing": 1681.60000000001,
+        "input_low": 7567.2,
+        "input_high": 9248.8
+      },
+      {
+        "input_name": "inputs.net_income",
+        "output_at_low": 63734.0,
+        "output_at_high": 63734.0,
+        "swing": 0.0,
+        "abs_swing": 0.0,
+        "input_low": 53719.2,
+        "input_high": 65656.8
+      }
+    ],
+    "total_variance": 25741.6
+  },
+  "break_even": {
+    "vary": "inputs.revenue",
+    "target": "outputs.operating_income",
+    "target_value": 0.0,
+    "solution": 32486.9999837279,
+    "achieved": -1.62721225933637e-05,
+    "error": 1.62721225933637e-05,
+    "iterations": 36,
+    "converged": true
+  },
+  "risk_yaml": "_forge_version: 5.1.0\ninputs:\n  revenue: 96221\n  cost_of_revenue: 24079\n  operating_expenses: 8408\n  net_income: 59688\noutputs:\n  gross_profit:\n    formula: =inputs.revenue - inputs.cost_of_revenue\n  operating_income:\n    formula: =outputs.gross_profit - inputs.operating_expenses\n  gross_margin:\n    formula: =outputs.gross_profit / inputs.revenue\n  operating_margin:\n    formula: =outputs.operating_income / inputs.revenue\n  net_margin:\n    formula: =inputs.net_income / inputs.revenue\ntornado:\n  output: outputs.operating_income\n  inputs:\n  - name: inputs.revenue\n    low: 86598.9\n    high: 105843.1\n  - name: inputs.cost_of_revenue\n    low: 21671.1\n    high: 26486.9\n  - name: inputs.operating_expenses\n    low: 7567.2\n    high: 9248.8\n  - name: inputs.net_income\n    low: 53719.2\n    high: 65656.8\n",
+  "assumptions": "Each numeric input varied by 10% (tornado: low/high; Monte Carlo: normal with std dev 10% of the value, independent draws)."
+}

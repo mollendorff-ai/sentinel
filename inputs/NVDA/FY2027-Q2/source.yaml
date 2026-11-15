@@ -1,0 +1,14 @@
+# Where this input came from (ADR-012). release.htm is the filing as downloaded;
+# release.md is made from it by scripts/html_to_markdown.py and is what a run reads.
+company: NVIDIA Corporation
+document: Form 8-K, Exhibit 99.1 (press release), second quarter of fiscal 2027
+quarter_ended: 2026-07-26
+filed: 2026-08-26
+url: https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/q2fy27pr.htm
+saved_on: 2026-11-15
+saved_with: >-
+  curl with the declared user agent "Mollendorff AI Sentinel security@mollendorff.ai",
+  as SEC EDGAR's fair-access policy asks
+sha256:
+  release.htm: 3b05e56c5cbdb5c93a86be28f6710079745b9698e9fa026b4fc22992a53fb231
+  release.md: ebf54e5460d0be9afbdf2c2ba1a97e3a4d44710f8d02f313aa0b645babeca652
