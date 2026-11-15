@@ -28,6 +28,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Runs are written to `runs/<TICKER>/<timestamp>/`, which is committed, instead of `output/`.
 - The Modeler writes Forge model format 5.1.0. The risk and scenario sections read both 5.1.0 and 5.0.0 inputs, and a Monte Carlo input keeps `value:` beside its formula in 5.0.0, which Forge requires (found by running the real binary).
 - The extraction prompt marks the document as data between delimiters, and asks for figures as printed, without converting units.
+- The brief prompt no longer asks for an "investment analyst" voice, a "margin of safety" or an outlook: it asks for a factual brief, says it is not investment advice, and lists its sections in order (they were numbered 1, 2, 3, 5, 6, 4). Found by answering it in a chat-mode run.
 
 - **Sentinel's goal is now to be Forge's AI-pipeline demonstration** ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)), the fourth workflow of Forge's `docs/WORKFLOWS.md` and Forge roadmap item T2-PIPELINE-DEMO. It is no longer an earnings product. A demo run will read a saved SEC earnings release checked against figures a person typed (`expected.yaml`), use Forge as its only calculator, and be reviewed as a pull request with its model and results (where it runs: ADR-013).
 - ADR-009 (Qdrant history) superseded; ADR-005 (Ref) and ADR-006 (pipeline) amended, each with a dated note at the top.
