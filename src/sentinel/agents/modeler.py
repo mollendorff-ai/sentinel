@@ -186,7 +186,7 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
 
     logger.info("Modeler agent: generating Forge model for %s", ticker)
 
-    llm = get_llm(max_tokens=4096)
+    llm = get_llm(max_tokens=4096, role="modeler")
     tools = await get_forge_tools()
 
     validate = next(t for t in tools if t.name == "forge_validate")

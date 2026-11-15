@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sentinel.handoff import HandoffLLM
 from sentinel.llm import DEFAULT_MAX_TOKENS, get_llm
 
 CUSTOM_MAX_TOKENS = 4096
@@ -140,3 +141,25 @@ def test_missing_package_raises() -> None:
         mock_importlib.import_module.side_effect = ImportError("No module named 'langchain_groq'")
         with pytest.raises(ImportError, match="pip install langchain-groq"):
             get_llm()
+
+
+def test_chat_provider_needs_no_package_or_key() -> None:
+    """SENTINEL_LLM_PROVIDER=chat returns the hand-off stand-in for the agent's role."""
+    with (
+        patch.dict("os.environ", {"SENTINEL_LLM_PROVIDER": "chat"}, clear=True),
+        patch("sentinel.llm.importlib") as mock_importlib,
+    ):
+        llm = get_llm(role="modeler")
+
+    assert isinstance(llm, HandoffLLM)
+    assert llm.role == "modeler"
+    mock_importlib.import_module.assert_not_called()
+
+
+def test_unknown_provider_lists_chat() -> None:
+    """The error for an unknown provider names chat among the choices."""
+    with (
+        patch.dict("os.environ", {"SENTINEL_LLM_PROVIDER": "foo"}, clear=True),
+        pytest.raises(ValueError, match="chat"),
+    ):
+        get_llm()

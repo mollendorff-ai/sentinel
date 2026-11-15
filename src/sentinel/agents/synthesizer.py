@@ -165,7 +165,7 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
     # Remove raw_output from forge_results for the prompt (verbose)
     forge_clean = {k: v for k, v in forge_results.items() if k != "raw_output"}
 
-    llm = get_llm()
+    llm = get_llm(role="synthesizer")
     prompt = SYNTHESIS_PROMPT.format(
         ticker=ticker,
         period=raw_data.get("period", "Unknown"),

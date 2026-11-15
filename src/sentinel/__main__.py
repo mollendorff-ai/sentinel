@@ -12,21 +12,27 @@ import logging
 import os
 import sys
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dotenv import load_dotenv
 
-from sentinel import __version__
+from sentinel import __version__, handoff
 from sentinel.approval import prompt_approval, show_draft_summary
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
+from sentinel.handoff import CHAT_PROVIDER
 from sentinel.inputs import validate_period
 from sentinel.llm import PROVIDER_DEFAULTS
 from sentinel.mcp import run_mcp_server
 from sentinel.output import write_run_output
 from sentinel.validation import validate_ticker
 
+if TYPE_CHECKING:
+    from sentinel.handoff import Exchange
+
 VERSION = __version__
+EXIT_WAITING = 3
+"""Exit status while a prompt waits for the chat's answer (ADR-013)."""
 
 
 def run_failed(result: dict[str, Any]) -> str:
@@ -35,9 +41,42 @@ def run_failed(result: dict[str, Any]) -> str:
         error = (result.get(key) or {}).get("error")
         if error:
             return f"{key}: {error}"
-    if not result.get("brief"):
+    brief = result.get("brief") or ""
+    if not brief:
         return "no brief was written"
+    if brief.startswith("Analysis incomplete"):
+        return f"brief: {brief}"
     return ""
+
+
+def _report_waiting(pending: list[Exchange]) -> None:
+    """Tell the AI in the chat which prompts to answer before running again."""
+    sys.stdout.write("WAITING for the chat to answer (SENTINEL_LLM_PROVIDER=chat):\n")
+    for exchange in pending:
+        sys.stdout.write(
+            f"  {exchange.role}: read {exchange.prompt_path}\n"
+            f"  {' ' * len(exchange.role)}  write the answer to {exchange.answer_path}\n",
+        )
+    sys.stdout.write("Then run the same command again.\n")
+
+
+def _finish(result: dict[str, Any]) -> str:
+    """Write and report one finished run; return ``ok``, ``failed`` or ``waiting``."""
+    pending = list(handoff.store().pending)
+    if pending:
+        _report_waiting(pending)
+        sys.stdout.write("\n")
+        return "waiting"
+
+    run_dir = write_run_output(result)
+    handoff.store().keep(run_dir)
+    sys.stdout.write(f"{result.get('brief', 'No brief generated.')}\n")
+    sys.stdout.write(f"Output: {run_dir}\n")
+    reason = run_failed(result)
+    if reason:
+        sys.stdout.write(f"FAILED: {reason}\n")
+    sys.stdout.write("\n")
+    return "failed" if reason else "ok"
 
 
 _AGENT_LABELS: dict[str, str] = {
@@ -58,11 +97,12 @@ async def _run_all(  # noqa: PLR0913 - one keyword per CLI option
     hitl: bool,
     provider: str,
     model: str,
-) -> int:
-    """Run the pipeline for each ticker sequentially; return how many runs failed."""
+) -> tuple[int, int]:
+    """Run the pipeline for each ticker; return (runs failed, runs waiting for the chat)."""
     mode = "quick" if quick else "full"
     interrupt = ["synthesizer"] if hitl else None
     failures = 0
+    waiting = 0
 
     async with create_checkpointer() as checkpointer:
         graph = compile_graph(checkpointer=checkpointer, interrupt_before=interrupt)
@@ -85,6 +125,7 @@ async def _run_all(  # noqa: PLR0913 - one keyword per CLI option
             }
 
             sys.stdout.write(f"--- {ticker} ---\n")
+            handoff.store().reset()
 
             # Stream first pass (halts at interrupt if hitl=True)
             async for update in graph.astream(
@@ -108,26 +149,18 @@ async def _run_all(  # noqa: PLR0913 - one keyword per CLI option
                         for node_name in update:
                             sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
 
-            result = dict((await graph.aget_state(config)).values)
+            outcome = _finish(dict((await graph.aget_state(config)).values))
+            failures += outcome == "failed"
+            waiting += outcome == "waiting"
 
-            run_dir = write_run_output(result)
-
-            brief = result.get("brief", "No brief generated.")
-            sys.stdout.write(f"{brief}\n")
-            sys.stdout.write(f"Output: {run_dir}\n")
-            reason = run_failed(result)
-            if reason:
-                failures += 1
-                sys.stdout.write(f"FAILED: {reason}\n")
-            sys.stdout.write("\n")
-
-    return failures
+    return failures, waiting
 
 
 _USAGE = (
     "Usage: python -m sentinel [--quick] [--hitl] [--period PERIOD] <TICKER> [TICKER ...]\n"
     "  Reads the saved input in inputs/<TICKER>/<PERIOD>/ (the newest period by default)\n"
-    "  and writes the run to runs/<TICKER>/<timestamp>/. Exits 1 if a run failed.\n"
+    "  and writes the run to runs/<TICKER>/<timestamp>/. Exits 1 if a run failed,\n"
+    "  3 if it waits for the chat to answer a prompt (SENTINEL_LLM_PROVIDER=chat).\n"
     "  --quick      Skip risk analysis and scenario planning\n"
     "  --hitl       Pause before Synthesizer for analyst approval\n"
     "  --period P   Read inputs/<TICKER>/P/ instead of the newest period\n"
@@ -199,7 +232,10 @@ def main() -> None:
     )
 
     provider = os.environ.get("SENTINEL_LLM_PROVIDER", "anthropic").lower()
-    _, default_model = PROVIDER_DEFAULTS.get(provider, ("", "unknown"))
+    chat_label = (CHAT_PROVIDER, "the AI in this chat")
+    _, default_model = PROVIDER_DEFAULTS.get(
+        provider, chat_label if provider == CHAT_PROVIDER else ("", "unknown")
+    )
     model = os.environ.get("SENTINEL_LLM_MODEL", default_model)
     mode = "quick" if quick else "full"
 
@@ -207,11 +243,13 @@ def main() -> None:
         f"Sentinel v{VERSION} — Analyzing {', '.join(tickers)} ({mode} mode, LLM: {model})\n\n",
     )
 
-    failures = asyncio.run(
+    failures, waiting = asyncio.run(
         _run_all(tickers, period=period, quick=quick, hitl=hitl, provider=provider, model=model),
     )
     if failures:
         sys.exit(1)
+    if waiting:
+        sys.exit(EXIT_WAITING)
 
 
 if __name__ == "__main__":

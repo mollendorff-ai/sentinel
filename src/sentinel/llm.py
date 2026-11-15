@@ -7,6 +7,8 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from sentinel.handoff import CHAT_PROVIDER, HandoffLLM
+
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -31,18 +33,22 @@ _CLASS_NAMES: dict[str, str] = {
 DEFAULT_MAX_TOKENS = 2048
 
 
-def get_llm(*, max_tokens: int = DEFAULT_MAX_TOKENS) -> BaseChatModel:
+def get_llm(*, max_tokens: int = DEFAULT_MAX_TOKENS, role: str = "llm") -> BaseChatModel:
     """Return a chat model configured via environment variables.
 
     Parameters
     ----------
     max_tokens
         Maximum tokens for the response.  Defaults to 2048.
+    role
+        The agent asking (``research``, ``modeler``, ``synthesizer``).  Used by the
+        ``chat`` provider to name the prompt files.
 
     Environment Variables
     ---------------------
     SENTINEL_LLM_PROVIDER
-        One of ``anthropic``, ``openai``, ``google``, ``groq``.
+        One of ``anthropic``, ``openai``, ``google``, ``groq``, or ``chat``: no API,
+        the AI in a chat answers each prompt through files (ADR-013).
         Defaults to ``anthropic``.
     SENTINEL_LLM_MODEL
         Optional model name override.  When unset, uses the default
@@ -63,10 +69,14 @@ def get_llm(*, max_tokens: int = DEFAULT_MAX_TOKENS) -> BaseChatModel:
     """
     provider = os.environ.get("SENTINEL_LLM_PROVIDER", "anthropic").lower()
 
+    if provider == CHAT_PROVIDER:
+        logger.info("LLM: answered in the chat (%s)", role)
+        return HandoffLLM(role)  # type: ignore[return-value]
+
     if provider not in PROVIDER_DEFAULTS:
         msg = (
             f"Unknown LLM provider: {provider!r}. "
-            f"Supported: {', '.join(sorted(PROVIDER_DEFAULTS))}"
+            f"Supported: {', '.join(sorted([*PROVIDER_DEFAULTS, CHAT_PROVIDER]))}"
         )
         raise ValueError(msg)
 

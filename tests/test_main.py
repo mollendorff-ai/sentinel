@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
 import pytest
 
-from sentinel.__main__ import VERSION, main
+from sentinel import handoff
+from sentinel.__main__ import EXIT_WAITING, VERSION, main
 
 
 def _mock_graph(result: dict, *, next_nodes: tuple[str, ...] = ()) -> MagicMock:
@@ -484,3 +485,71 @@ def test_main_exits_1_when_a_run_fails(
     assert exc.value.code == 1
     mock_write.assert_called_once()
     assert f"FAILED: {reason}" in capsys.readouterr().out
+
+
+def test_main_waits_for_the_chat_and_exits_3(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """A prompt without an answer: no run folder, the files named, exit 3."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "AAPL"])
+    monkeypatch.setenv("SENTINEL_LLM_PROVIDER", "chat")
+    store = handoff.HandoffStore(folder=tmp_path)
+    monkeypatch.setattr(handoff, "_STORE", store)
+
+    mock_graph = _mock_graph({"ticker": "AAPL", "raw_data": {"error": "No answer yet"}})
+
+    async def _astream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, dict]]:
+        with pytest.raises(handoff.AnswerNeededError):
+            store.answer("research", "Read the filing.")
+        yield {"research": {}}
+
+    mock_graph.astream = MagicMock(side_effect=_astream)
+
+    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output as mock_write, pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == EXIT_WAITING
+    mock_write.assert_not_called()
+    out = capsys.readouterr().out
+    assert "LLM: the AI in this chat" in out
+    assert "WAITING for the chat to answer" in out
+    assert "research: read " in out
+    assert ".answer.md" in out
+    assert "Then run the same command again." in out
+
+
+def test_main_keeps_the_chat_transcript(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A finished chat run copies its prompts and answers into the run folder."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "AAPL"])
+    store = MagicMock(pending=[])
+    monkeypatch.setattr(handoff, "_STORE", store)
+    mock_graph = _mock_graph({"ticker": "AAPL", "brief": "Brief."})
+
+    p_ckpt, p_graph, _ = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, patch("sentinel.__main__.write_run_output", return_value=tmp_path):
+        main()
+
+    store.keep.assert_called_once_with(tmp_path)
+
+
+def test_main_fails_on_an_incomplete_brief(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A brief the Synthesizer could not write counts as a failed run."""
+    monkeypatch.setattr("sys.argv", ["sentinel", "AAPL"])
+    result = {"ticker": "AAPL", "brief": "Analysis incomplete for AAPL: LLM call failed"}
+    mock_graph = _mock_graph(result)
+
+    p_ckpt, p_graph, p_output = _patch_cli(mock_graph)
+    with p_ckpt, p_graph, p_output, pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 1
+    assert "FAILED: brief: Analysis incomplete" in capsys.readouterr().out

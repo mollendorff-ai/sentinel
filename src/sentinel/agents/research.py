@@ -101,7 +101,7 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
         content=saved.document[:MAX_DOCUMENT_CHARS],
     )
     try:
-        response = await get_llm().ainvoke(prompt)
+        response = await get_llm(role="research").ainvoke(prompt)
     except Exception:
         logger.exception("Research agent: LLM extraction failed for %s", ticker)
         return {"raw_data": {"error": f"LLM extraction failed for {ticker}", "ticker": ticker}}
