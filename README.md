@@ -10,7 +10,7 @@
 
 An AI agent reads a company's quarterly results, writes a Forge model, and Forge validates and calculates it. The agent reads Forge's numbers, never its own arithmetic, and the run's model and results go into git as a pull request for a person to review. It is the fourth workflow of Forge's [docs/WORKFLOWS.md](https://github.com/mollendorff-ai/forge/blob/main/docs/WORKFLOWS.md), the AI pipeline, running for real ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)).
 
-> **Status (2026-11-15):** 0.9.0 is built and tested. A run happens in an AI chat, and the chat is the LLM, so no API key is needed ([ADR-013](docs/adr/013-run-in-a-chat.md)). In CI the whole pipeline runs against the real Forge on the saved Apple filing with a scripted LLM, and Forge's operating income equals the filing's (35,631 million). **Not yet done:** a person checking `expected.yaml`, and the first reviewed run.
+> **Status (2026-11-15):** 0.9.0 is built and tested. A run happens in an AI chat, and the chat is the LLM, so no API key is needed ([ADR-013](docs/adr/013-run-in-a-chat.md)). In CI the whole pipeline runs against the real Forge on the saved Apple filing with a scripted LLM, and Forge's operating income equals the filing's (35,631 million). The maintainer checked `expected.yaml` against the filing, and the first run (AAPL, FY2026-Q4) is in git under `runs/AAPL/20261115-184457/` ([docs/FINDINGS.md](docs/FINDINGS.md) says what Forge made hard for a program). **Not shown:** a scheduled run with nobody starting it, and a second company or quarter.
 
 ## How a demo run works
 
