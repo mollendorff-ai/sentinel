@@ -26,7 +26,7 @@ sequenceDiagram
     C->>S: python -m sentinel AAPL (inputs/AAPL/FY2026-Q4, as filed with the SEC)
     S-->>C: prompt: extract the figures (exit 3)
     C->>S: the answer, run again
-    S->>S: compare with expected.yaml, checked by a person; stop if they differ
+    S->>S: compare with expected.yaml, checked by a person, and stop if they differ
     S-->>C: prompt: write the Forge model (exit 3)
     C->>S: model.yaml, run again
     loop until Forge accepts it
@@ -37,9 +37,9 @@ sequenceDiagram
     F-->>S: risk ranges and scenarios
     S-->>C: prompt: write the brief from Forge's numbers (exit 3)
     C->>S: the brief, run again
-    S->>G: runs/AAPL/<timestamp>/, with the prompts and answers
+    S->>G: runs/AAPL/(timestamp)/, with the prompts and answers
     C->>G: branch, commit, open a pull request
-    R->>G: review the figures, formulas and results; merge
+    R->>G: review the figures, formulas and results, then merge
 ```
 
 **Two checks, two different questions.** Forge checks the arithmetic: every result comes from a formula it calculated. It cannot tell whether the LLM read the right figure from the filing, so each saved input has an `expected.yaml` of its headline figures, checked by a person, and a run whose extraction differs stops before any model is built.
