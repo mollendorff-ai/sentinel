@@ -1,0 +1,21 @@
+{
+  "company": "NVIDIA Corporation",
+  "ticker": "NVDA",
+  "period": "Q2 FY2027",
+  "currency": "USD",
+  "revenue": 96221,
+  "cost_of_revenue": 24079,
+  "gross_profit": 72142,
+  "operating_expenses": 8408,
+  "operating_income": 63734,
+  "net_income": 59688,
+  "eps": 2.46,
+  "shares_outstanding": 24285,
+  "input": {
+    "path": "inputs/NVDA/FY2027-Q2",
+    "period": "FY2027-Q2",
+    "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/q2fy27pr.htm",
+    "expected_checked_by_person": true,
+    "expected_mismatches": []
+  }
+}
