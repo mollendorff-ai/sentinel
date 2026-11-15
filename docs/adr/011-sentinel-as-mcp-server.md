@@ -41,7 +41,7 @@ runtime dependency is required.
 
 stdio — consistent with Forge and Ref. The server is invoked as:
 
-```
+```bash
 python -m sentinel mcp
 ```
 

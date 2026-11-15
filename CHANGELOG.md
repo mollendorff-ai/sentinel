@@ -3,6 +3,16 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+
+- **Sentinel's goal is now to be Forge's AI-pipeline demonstration** ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)), the fourth workflow of Forge's `docs/WORKFLOWS.md` and Forge roadmap item T2-PIPELINE-DEMO. It is no longer an earnings product. A demo run will read a saved SEC earnings release checked against figures a person typed (`expected.yaml`), use Forge as its only calculator, run unattended in GitHub Actions and open a pull request with its model and results. No code changes yet.
+- ADR-009 (Qdrant history) superseded; ADR-005 (Ref) and ADR-006 (pipeline) amended, each with a dated note at the top.
+- README rewritten around the demo, with what 0.8.1 does today kept separate from what 0.9.0 will do.
+- `.asimov/project.yaml`: the description no longer claims "investment-grade briefs with zero hallucinated numbers".
+- `.asimov/roadmap.yaml`: the 0.9.0 security sprint is replaced by the demo milestone, with an acceptance criterion; the security items that still apply move to the backlog.
+
 ## [0.8.1] - 2026-11-05
 
 Makes the pipeline run end to end against Forge 10.0.0-beta.11. Before this, the CLI and the MCP server crashed on the first run, and the risk and scenario steps always failed.

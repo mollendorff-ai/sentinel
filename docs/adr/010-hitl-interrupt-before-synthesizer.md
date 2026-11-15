@@ -26,7 +26,7 @@ This is opt-in via the `--hitl` CLI flag. Default behavior is unchanged.
    interrupt.
 2. `graph.get_state(config)` returns a `StateSnapshot`; `.next` contains `"synthesizer"`.
 3. `show_draft_summary(snapshot.values)` prints key financials to the terminal.
-4. `prompt_approval()` prompts: `Generate brief? [A]pprove / [R]eject + feedback: `
+4. `prompt_approval()` prompts: `Generate brief? [A]pprove / [R]eject + feedback:`
    - Empty / "a" / "A" → approve; resume immediately.
    - Anything else → that text becomes `analyst_feedback`; injected via `aupdate_state`
      before resuming.

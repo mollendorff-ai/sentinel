@@ -1,7 +1,10 @@
 # ADR-005: Ref MCP over CLI subprocess for web data ingestion
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-012](012-sentinel-as-forge-demo.md) on 2026-11-15
 **Date:** 2026-02-22
+
+> **2026-11-15:** amended by ADR-012. A demo run reads a saved input from the repository, so it
+> does not use Ref. This ADR still describes how Sentinel calls Ref when it does.
 
 ## Context
 
