@@ -10,7 +10,7 @@
 
 An AI agent reads a company's quarterly results, writes a Forge model, and Forge validates and calculates it. The agent reads Forge's numbers, never its own arithmetic, and the run's model and results go into git as a pull request for a person to review. It is the fourth workflow of Forge's [docs/WORKFLOWS.md](https://github.com/mollendorff-ai/forge/blob/main/docs/WORKFLOWS.md), the AI pipeline, running for real ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)).
 
-> **Status (2026-11-15):** 0.9.0. A run happens in an AI chat, and the chat is the LLM, so no API key is needed ([ADR-013](docs/adr/013-run-in-a-chat.md)). Two runs on Apple's Q4 FY2026 filing are in git: the first (`runs/AAPL/20261115-184457/`) and one made after the evaluation of the same day, with a Modeler prompt that gives no formula and the check of Forge's results against the filing (`runs/AAPL/20261115-215223/`, [ADR-014](docs/adr/014-check-the-formulas-and-keep-only-the-demo.md)). In CI the whole pipeline runs against the real Forge on the saved filing with a scripted LLM, and a model with a wrong formula fails. **Not shown:** a scheduled run with nobody starting it, and a second company or quarter.
+> **Status (2026-11-15):** 0.9.0. A run happens in an AI chat, and the chat is the LLM, so no API key is needed ([ADR-013](docs/adr/013-run-in-a-chat.md)). Two runs on Apple's Q4 FY2026 filing are in git: the first (`runs/AAPL/20261115-184457/`) and one made after the evaluation of the same day, with a Modeler prompt that gives no formula and the check of Forge's results against the filing (`runs/AAPL/20261115-215223/`, [ADR-014](docs/adr/014-check-the-formulas-and-keep-only-the-demo.md)). A third, on NVIDIA's Q2 FY2027 filing (`runs/NVDA/20261115-230607/`), is the first on a second company and quarter. In CI the whole pipeline runs against the real Forge on the saved filing with a scripted LLM, and a model with a wrong formula fails. **Not shown:** a scheduled run with nobody starting it, and more than two companies.
 
 ## How a demo run works
 
@@ -88,7 +88,7 @@ In `--quick` mode the Risk Analyst and Scenario Planner are skipped. The human r
 
 **Limits:**
 
-- One saved input so far: Apple, fourth quarter of fiscal 2026.
+- Two saved inputs so far: Apple, fourth quarter of fiscal 2026, and NVIDIA, second quarter of fiscal 2027.
 - Risk ranges and scenarios use fixed assumptions applied to one quarter: 10% is a bound in the tornado and the scenarios, and a standard deviation in the Monte Carlo, so about one draw in three falls outside ±10%. They describe those assumptions, not the company's real uncertainty.
 - The brief is written by an LLM from Forge's results. Nothing yet checks the text against the numbers.
 
