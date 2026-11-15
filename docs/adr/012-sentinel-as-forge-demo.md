@@ -1,12 +1,14 @@
 # ADR-012: Sentinel as Forge's AI-pipeline demonstration
 
-**Status:** Accepted, amended by [ADR-013](013-run-in-a-chat.md) on 2026-11-15
+**Status:** Accepted, amended by [ADR-013](013-run-in-a-chat.md) and [ADR-014](014-check-the-formulas-and-keep-only-the-demo.md) on 2026-11-15
 **Date:** 2026-11-15
 **Supersedes:** [ADR-009](009-qdrant-rag-historical-earnings.md) (Qdrant history)
 **Amends:** [ADR-005](005-ref-mcp-over-cli-subprocess.md) (Ref is no longer used in a demo run), [ADR-006](006-five-agent-pipeline.md) (the Retriever reads files, not Qdrant)
 
 > **2026-11-15:** amended by ADR-013. The demo runs in an AI chat, with the chat as the LLM,
 > instead of unattended in GitHub Actions with an API key (decisions 4 and 5 below).
+>
+> **2026-11-15:** amended by [ADR-014](014-check-the-formulas-and-keep-only-the-demo.md): the `--hitl` gate and the MCP server, which this ADR kept, are removed.
 
 ## Context
 

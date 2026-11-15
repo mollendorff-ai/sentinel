@@ -59,7 +59,7 @@ outputs:
 """
 
 
-def _scripted_llm(extraction: dict[str, Any]) -> MagicMock:
+def _scripted_llm(extraction: dict[str, Any], model: str = MODEL) -> MagicMock:
     """Return an LLM that answers each agent's prompt the way a correct model would."""
 
     async def answer(prompt: str) -> MagicMock:
@@ -67,7 +67,7 @@ def _scripted_llm(extraction: dict[str, Any]) -> MagicMock:
         if "financial data extraction specialist" in prompt:
             reply.content = json.dumps(extraction)
         elif "You are a financial modeler" in prompt:
-            reply.content = MODEL
+            reply.content = model
         else:
             reply.content = "Brief: operating income came from Forge."
         return reply
@@ -85,8 +85,8 @@ def repo_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-async def _run(extraction: dict[str, Any]) -> dict[str, Any]:
-    llm = _scripted_llm(extraction)
+async def _run(extraction: dict[str, Any], model: str = MODEL) -> dict[str, Any]:
+    llm = _scripted_llm(extraction, model)
     with (
         patch("sentinel.agents.research.get_llm", return_value=llm),
         patch("sentinel.agents.modeler.get_llm", return_value=llm),
@@ -103,6 +103,7 @@ async def test_full_run_on_the_saved_input() -> None:
     assert run_failed(result) == ""
     assert result["raw_data"]["input"]["expected_mismatches"] == []
     assert result["forge_results"]["outputs.operating_income"] == OPERATING_INCOME
+    assert result["forge_results"]["filing_check"]["mismatches"] == []
     assert "error" not in result["risk_analysis"]
     assert "error" not in result["scenario_analysis"]
     assert result["historical_context"] == []
@@ -119,6 +120,27 @@ async def test_a_misread_figure_stops_the_run_before_forge() -> None:
 
     assert run_failed(result).startswith("raw_data: Extracted figures differ")
     assert result["model_yaml"] == ""
+
+
+@pytest.mark.usefixtures("repo_copy")
+async def test_a_wrong_formula_stops_the_run_after_forge() -> None:
+    """The evaluation's case, against the real Forge: a formula that adds operating expenses.
+
+    Forge validates and calculates it (74,009); the filing prints 35,631, so the run fails
+    and no brief is written from the wrong number.
+    """
+    wrong = MODEL.replace(
+        "outputs.gross_profit - inputs.operating_expenses",
+        "outputs.gross_profit + inputs.operating_expenses",
+    )
+    result = await _run(EXTRACTION, wrong)
+
+    assert result["forge_results"]["outputs.operating_income"] == 74009  # noqa: PLR2004
+    assert run_failed(result) == (
+        "forge_results: Forge's results differ from the filing: "
+        "outputs.operating_income: the filing prints 35631, Forge calculated 74009"
+    )
+    assert result["brief"].startswith("Analysis incomplete")
 
 
 async def test_chat_mode_one_answer_per_run(

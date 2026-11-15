@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_OUTPUT_DIR = Path("runs")
 """Runs are committed to git (ADR-012), so they live in a tracked folder."""
 
+FAILED_OUTPUT_DIR = Path(".sentinel/failed")
+"""A failed run is kept for debugging in an ignored folder, out of ``runs/`` and its history."""
+
 
 def write_run_output(
     state: dict[str, Any],

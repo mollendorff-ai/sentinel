@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import pytest
@@ -92,3 +93,24 @@ async def test_handoff_llm_uses_the_process_store(
         await llm.ainvoke("P")
     handoff.store().pending[0].answer_path.write_text('{"revenue": 1}')
     assert (await llm.ainvoke("P")).content == '{"revenue": 1}'
+
+
+def test_quiet_while_waiting(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """While a prompt is pending, Sentinel's warnings and the AnswerNeededError are dropped."""
+    store = handoff.HandoffStore(folder=tmp_path)
+    monkeypatch.setattr(handoff, "_STORE", store)
+    quiet = handoff.QuietWhileWaiting()
+
+    def record(name: str, level: int, exc: BaseException | None = None) -> logging.LogRecord:
+        exc_info = (type(exc), exc, None) if exc else None
+        return logging.LogRecord(name, level, __file__, 1, "msg", None, exc_info)
+
+    warning = record("sentinel.agents.modeler", logging.WARNING)
+    assert quiet.filter(warning) is True  # nothing pending: a warning is a warning
+    assert quiet.filter(record("x", logging.ERROR, handoff.AnswerNeededError("wait"))) is False
+
+    with pytest.raises(handoff.AnswerNeededError):
+        store.answer("research", "Read the filing.")
+    assert quiet.filter(warning) is False
+    assert quiet.filter(record("sentinel.agents.research", logging.INFO)) is True
+    assert quiet.filter(record("langgraph", logging.WARNING)) is True

@@ -3,13 +3,19 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.9.0] - 2026-11-15
+
+Sentinel becomes Forge's AI-pipeline demonstration (ADR-012), run in an AI chat with the chat as the LLM (ADR-013). After an independent evaluation the same day (grade B-), Forge's results are checked against the filing, so a wrong formula fails the run, and what the demo does not use is removed (ADR-014).
 
 ### Added
 
+- **Forge's results are checked against the filing** ([ADR-014](docs/adr/014-check-the-formulas-and-keep-only-the-demo.md)). `expected.yaml` gains `results:`, the subtotals the filing prints (for Apple, gross profit 54,820 and operating income 35,631 million); after Forge calculates, a result that differs fails the run with exit 1 and no brief is written. An input without `results:` is refused. The evaluation's case, `operating_income = gross_profit + operating_expenses`, which Forge calculates as 74,009, now fails, in a unit test and against the real Forge. A model whose output formula holds a number (`=35631`) fails too. `forge_results.json` records the comparison as `filing_check`, and the summary prints it.
+- **A second run in a chat**, `runs/AAPL/20261115-215223/`, with the new Modeler prompt: its gross profit and operating income equal the filing's, and replaying its saved answers gives the same files.
+- A missing API key, or the placeholder from `.env.example`, is named with exit 2 and a pointer to chat mode; an LLM call that fails says why (`LLM extraction failed for AAPL: <error>`).
+
 - **Chat mode, no API key** ([ADR-013](docs/adr/013-run-in-a-chat.md)): with `SENTINEL_LLM_PROVIDER=chat`, each LLM step writes its prompt to `.sentinel/chat/<role>-<hash>.prompt.md` and the run stops with exit status 3 until the answer file beside it is written; running again reuses the answers. The AI in a chat plays the LLM. A finished run keeps its prompts and answers in `runs/.../llm/`. The README has the prompt to paste into a chat.
 - **The CLI refuses an unchecked `expected.yaml`** (exit 2) unless given `--allow-unchecked`, and refuses a ticker with no saved input.
-- **A saved input:** `inputs/AAPL/FY2026-Q4/`, Apple's fourth-quarter fiscal 2026 earnings release as filed with the SEC (8-K, Exhibit 99.1): the original HTML, the Markdown a run reads (`scripts/html_to_markdown.py`), `source.yaml` with the url, dates and checksums, and `expected.yaml` with the four headline figures, drafted and waiting for a person to check (`checked: false`).
+- **A saved input:** `inputs/AAPL/FY2026-Q4/`, Apple's fourth-quarter fiscal 2026 earnings release as filed with the SEC (8-K, Exhibit 99.1): the original HTML, the Markdown a run reads (`scripts/html_to_markdown.py`), `source.yaml` with the url, dates and checksums, and `expected.yaml` with the four headline figures, checked by the maintainer against the filing (`checked: true`).
 - **The expected-figure check:** Research compares what the LLM extracted with `expected.yaml` and stops the run when a figure differs by more than the tolerance (0.5 million).
 - **`python -m sentinel.summary`:** a run's figures, the expected-figure check, Forge's results and the brief, as Markdown for a pull request.
 - **Forge pinned:** `scripts/install-forge.sh` installs v10.0.0-rc.26 on Linux x86_64 or aarch64 and refuses the download unless its SHA-256 matches the one recorded in the script. A new CI job runs the integration tests against it.
@@ -19,12 +25,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Removed
 
+- **The `--hitl` approval gate, the MCP server (`python -m sentinel mcp`) and the SQLite checkpointer** (ADR-014, superseding ADR-010, ADR-011 and ADR-007): the demo uses none of them. With them go `langgraph-checkpoint-sqlite` and `mcp` as direct dependencies (`langchain-mcp-adapters` still brings `mcp` for the Forge client).
 - The GitHub Actions demo workflow (`demo.yml`), which needed an API key (ADR-013).
 - Qdrant (`qdrant-client`, `sentinel.rag`): the Retriever reads earlier runs from `runs/`.
 - Live Macrotrends fetching and the Ref MCP client.
 
 ### Changed
 
+- **The Modeler's prompt gives no formula.** It names the four inputs and the five outputs, says what each output means and gives Forge's format rules; the LLM writes the formulas, and it is shown the four input figures, not the subtotals it extracted.
+- **A failed run is written to `.sentinel/failed/<TICKER>/<timestamp>/`**, which git ignores, so `runs/` (committed, and read as history) holds only runs that passed every check.
+- **A chat step that waits prints only the WAITING block**: the warnings of the agents that skip after it, and the traceback of the unanswered prompt, are no longer shown.
+- The default Anthropic model is `claude-sonnet-5-5`, as in `.env.example` (it was `claude-opus-4-6`).
+- The README says what 10% means in the risk section: a bound in the tornado and the scenarios, a standard deviation in the Monte Carlo. SECURITY.md describes 0.9.0 (no web pages, Ref or Qdrant; a reviewer checks that a run's pull request changes only `runs/`). `docs/FINDINGS.md` holds nothing unreported: Forge fixed its findings in #238 and Ref's is #43. The roadmap closes 0.9.0.
 - Runs are written to `runs/<TICKER>/<timestamp>/`, which is committed, instead of `output/`.
 - The Modeler writes Forge model format 5.1.0. The risk and scenario sections read both 5.1.0 and 5.0.0 inputs, and a Monte Carlo input keeps `value:` beside its formula in 5.0.0, which Forge requires (found by running the real binary).
 - The extraction prompt marks the document as data between delimiters, and asks for figures as printed, without converting units.

@@ -23,7 +23,10 @@ def _save_input(root: Path, *, checked: bool = True, period: str = "FY2026-Q4") 
     (folder / "release.md").write_text("# Apple reports\nTotal net sales 100,000\n")
     (folder / "source.yaml").write_text("url: https://www.sec.gov/example.htm\n")
     lines = "\n".join(f"  {k}: {v}" for k, v in FIGURES.items())
-    (folder / "expected.yaml").write_text(f"checked: {str(checked).lower()}\nfigures:\n{lines}\n")
+    (folder / "expected.yaml").write_text(
+        f"checked: {str(checked).lower()}\nfigures:\n{lines}\n"
+        "results:\n  outputs.gross_profit: 40000\n"
+    )
     return folder
 
 
@@ -126,7 +129,7 @@ async def test_research_node_handles_llm_exception() -> None:
     with patch("sentinel.agents.research.get_llm", return_value=_llm(RuntimeError("boom"))):
         result = await research_node({"ticker": "AAPL"})
 
-    assert result["raw_data"]["error"] == "LLM extraction failed for AAPL"
+    assert result["raw_data"]["error"] == "LLM extraction failed for AAPL: RuntimeError: boom"
 
 
 @pytest.mark.usefixtures("in_repo")

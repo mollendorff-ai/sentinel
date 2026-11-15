@@ -3,32 +3,39 @@
 # item below serves that, and each acceptance is something observed, not code
 # written: a run in an AI chat, figures matching a file a person checked.
 
-current:
-  version: "0.9.0"
-  summary: "Forge demo -- one run on a saved input in an AI chat that plays the LLM, recorded in git and reviewed as a pull request"
-  deliverables:
-    - "[x] ADR-012: Sentinel as Forge's AI-pipeline demonstration; README, project.yaml and this roadmap aligned"
-    - "[x] Saved input: Apple's Q4 FY2026 earnings release from SEC EDGAR (8-K, Exhibit 99.1) in inputs/AAPL/FY2026-Q4/, the original HTML and the Markdown a run reads, with source URL, date and checksums"
-    - "[ ] expected.yaml beside it: drafted from the filing (revenue 114,477; cost of revenue 59,657; operating expenses 19,189; net income 30,711); a person checks it against the filing and sets checked: true"
-    - "[x] Research reads the saved input; the run fails when the extracted figures differ from expected.yaml; Macrotrends URLs and the Ref client removed"
-    - "[x] Qdrant removed (qdrant-client, src/sentinel/rag, Qdrant tests); the Retriever reads earlier runs' results for the ticker from runs/"
-    - "[x] Modeler writes Forge model format 5.1.0; validate before calculate is kept, since forge validate calculates the model and fails on a broken formula"
-    - "[x] Forge pinned to v10.0.0-rc.26; CI and the demo install the release binary and check it against a checksum recorded in scripts/install-forge.sh"
-    - "[x] Integration tests run against that real Forge in CI (no LLM), including the whole pipeline on the saved input with a scripted LLM: Forge's operating income equals the filing's 35,631"
-    - "[x] ADR-013: the run happens in an AI chat that plays the LLM (SENTINEL_LLM_PROVIDER=chat, prompt and answer files, exit 3 while waiting), no API key; the GitHub Actions demo workflow removed"
-    - "[x] The CLI refuses an unchecked expected.yaml unless --allow-unchecked; a run keeps its prompts and answers in llm/"
-    - "[x] A prompt in the README to paste into a chat: installs Sentinel and the pinned Forge, runs the loop, prints the summary, opens a pull request or prints the files"
-    - "[ ] One real run from that prompt in a chat, on a checked expected.yaml, its pull request merged; the README links to it"
-    - "[ ] What Forge and Ref made hard for a program, reported to them as roadmap items (written down in docs/FINDINGS.md)"
-  acceptance: >-
-    The README's prompt has run once in an AI chat, started by a person and with no person in
-    the loop after that (ADR-013), on the saved input with a checked expected.yaml; its extracted
-    figures match expected.yaml; its model, results and transcript are in git through a merged
-    pull request; and Forge's docs/WORKFLOWS.md links to it (a change in the Forge repo).
+current: {}
 
 next: []
 
 released:
+  - version: "0.9.0"
+    date: "2026-11-15"
+    summary: "Forge demo -- one run on a saved input in an AI chat that plays the LLM, recorded in git and reviewed as a pull request"
+    deliverables:
+      - "[x] ADR-012: Sentinel as Forge's AI-pipeline demonstration; README, project.yaml and this roadmap aligned"
+      - "[x] Saved input: Apple's Q4 FY2026 earnings release from SEC EDGAR (8-K, Exhibit 99.1) in inputs/AAPL/FY2026-Q4/, the original HTML and the Markdown a run reads, with source URL, date and checksums"
+      - "[x] expected.yaml beside it: drafted from the filing (revenue 114,477; cost of revenue 59,657; operating expenses 19,189; net income 30,711); checked by the maintainer against the filing (checked: true)"
+      - "[x] Research reads the saved input; the run fails when the extracted figures differ from expected.yaml; Macrotrends URLs and the Ref client removed"
+      - "[x] Qdrant removed (qdrant-client, src/sentinel/rag, Qdrant tests); the Retriever reads earlier runs' results for the ticker from runs/"
+      - "[x] Modeler writes Forge model format 5.1.0; validate before calculate is kept, since forge validate calculates the model and fails on a broken formula"
+      - "[x] Forge pinned to v10.0.0-rc.26; CI and the demo install the release binary and check it against a checksum recorded in scripts/install-forge.sh"
+      - "[x] Integration tests run against that real Forge in CI (no LLM), including the whole pipeline on the saved input with a scripted LLM: Forge's operating income equals the filing's 35,631"
+      - "[x] ADR-013: the run happens in an AI chat that plays the LLM (SENTINEL_LLM_PROVIDER=chat, prompt and answer files, exit 3 while waiting), no API key; the GitHub Actions demo workflow removed"
+      - "[x] The CLI refuses an unchecked expected.yaml unless --allow-unchecked; a run keeps its prompts and answers in llm/"
+      - "[x] A prompt in the README to paste into a chat: installs Sentinel and the pinned Forge, runs the loop, prints the summary, opens a pull request or prints the files"
+      - "[x] One real run from that prompt in a chat, on a checked expected.yaml, its pull request merged (#5); the README links to it"
+      - "[x] What Forge and Ref made hard for a program, reported to them: Forge T1-PIPELINE-FINDINGS (fixed in Forge #238), Ref #43 (the user agent)"
+      - "[x] From the evaluation of 2026-11-15 (B-), ADR-014: Forge's results checked against the subtotals the filing prints (expected.yaml results:), so a wrong formula fails the run; a formula with a number in it fails; the Modeler's prompt gives no formula"
+      - "[x] ADR-014: the --hitl gate, the MCP server and the SQLite checkpointer removed; a failed run goes to .sentinel/failed/, not runs/"
+      - "[x] A waiting chat step prints only the WAITING block; a missing or placeholder API key is named, with exit 2; default Anthropic model claude-sonnet-5-5"
+      - "[x] SECURITY.md rewritten for 0.9.0; the risk wording says what 10% means (a standard deviation in the Monte Carlo, a bound in the tornado)"
+      - "[x] A second run in a chat with the new prompts (runs/AAPL/20261115-215223), its results equal to the filing's"
+    acceptance: >-
+      The README's prompt has run once in an AI chat, started by a person and with no person in
+      the loop after that (ADR-013), on the saved input with a checked expected.yaml; its extracted
+      figures match expected.yaml; its model, results and transcript are in git through a merged
+      pull request; and Forge's docs/WORKFLOWS.md links to it (a change in the Forge repo).
+
   - version: "0.8.0"
     date: "2026-02-27"
     summary: "Sentinel as MCP server -- sentinel_analyze + sentinel_resume tools"
@@ -153,7 +160,5 @@ backlog:
   # Qdrant and live-input items went with Qdrant and live input.
   - "Prompt-injection delimiters and Unicode Tag strip in the Research prompt, for when an input is not a reviewed file"
   - "Per-agent tool scoping: Modeler {validate, calculate}, Risk {simulate, tornado, break_even}, Scenario {scenarios, compare, break_even}"
-  - "MCP server: thread_id validation in sentinel_resume, a timeout per call, a limit on concurrent calls"
-  - "Analyst feedback: a length cap and delimiters in the Synthesizer prompt"
   - "A check that the brief's numbers are Forge's (every figure in the text found in the results)"
   - "A second company or quarter, once one run has been reviewed"

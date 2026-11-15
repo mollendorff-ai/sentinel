@@ -12,3 +12,12 @@ figures:
   cost_of_revenue: 59657     # Total cost of sales
   operating_expenses: 19189  # Total operating expenses
   net_income: 30711          # Net income
+
+# The subtotals the same statements print, which Forge must calculate from the
+# figures above. A model whose formulas give anything else fails the run: this is
+# the check of the formulas the LLM writes (added 2026-11-15, after the evaluation
+# of that day found a wrong formula passed every other check). Typed by Claude from
+# release.md lines 40 and 45; the maintainer confirms them in this change's review.
+results:
+  outputs.gross_profit: 54820      # Gross margin
+  outputs.operating_income: 35631  # Operating income

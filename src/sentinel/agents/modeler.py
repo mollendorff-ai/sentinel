@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sentinel.inputs import InputError, compare_with_results, load_input
 from sentinel.llm import get_llm
 from sentinel.tools.forge_mcp import get_forge_tools
 from sentinel.tools.forge_text import parse_json
+from sentinel.tools.risk_models import ModelShapeError, load_model
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -22,42 +25,52 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 
+MODEL_FIGURES = (
+    "company",
+    "ticker",
+    "period",
+    "currency",
+    "revenue",
+    "cost_of_revenue",
+    "operating_expenses",
+    "net_income",
+)
+"""What the Modeler is shown of the extraction: the four inputs, not the printed subtotals."""
+
+_NUMBER_IN_FORMULA = re.compile(r"(?<![A-Za-z_.\d])\d")
+
 GENERATION_PROMPT = """\
 You are a financial modeler.  Given the earnings data below, write a Forge model
-(model format 5.1.0) that calculates the key financial metrics.  Forge does the
-arithmetic: write formulas, never results.
+(model format 5.1.0) that calculates the quarter's key metrics.  Forge does the
+arithmetic: you write the formulas, never their results.
 
 EARNINGS DATA:
 {earnings_json}
 
-Write the model with this structure:
+The model has two groups.
 
-```yaml
-_forge_version: "5.1.0"
+`inputs` holds four figures, each a plain number copied from the data:
+revenue, cost_of_revenue, operating_expenses, net_income.
 
-inputs:
-  revenue: <from data>
-  cost_of_revenue: <from data>
-  operating_expenses: <from data>
-  net_income: <from data>
+`outputs` holds five results, each a formula over the inputs and other outputs:
+- gross_profit: what the statements of operations call gross margin, in dollars
+- operating_income: as the statements of operations define it
+- gross_margin: gross profit as a share of revenue (0.25 means 25%)
+- operating_margin: operating income as a share of revenue
+- net_margin: net income as a share of revenue
 
-outputs:
-  gross_profit: {{formula: "=inputs.revenue - inputs.cost_of_revenue"}}
-  operating_income: {{formula: "=outputs.gross_profit - inputs.operating_expenses"}}
-  gross_margin: {{formula: "=outputs.gross_profit / inputs.revenue"}}
-  operating_margin: {{formula: "=outputs.operating_income / inputs.revenue"}}
-  net_margin: {{formula: "=inputs.net_income / inputs.revenue"}}
-```
-
-Rules:
-- Use `_forge_version: "5.1.0"`.
-- An input is a plain number copied from the data: `revenue: 94800`.
-- An output is `{{formula: "=<expression>"}}`; never write its value.
-- Formulas name other fields as `group.field`.
-- Only use data provided -- do NOT invent numbers.
-- Use raw numbers (not formatted): 94800 not "$94.8B".
-- If a value is null/missing, omit that input and any outputs depending on it.
+Forge's format:
+- The first line is `_forge_version: "5.1.0"`.
+- An input is a plain number: `revenue: 94800`.  Use raw numbers, not "$94.8B".
+- An output is `{{formula: "=<expression>"}}`, written like an Excel formula; never
+  write its value.
+- A formula names a field as `group.field`, for example `inputs.revenue`.
+- Use only the four figures in the data; do NOT invent numbers.  If one is null or
+  missing, leave it out, and leave out every output that needs it.
 - Return ONLY the YAML content, no markdown fences, no commentary.
+
+Sentinel compares two of Forge's results with the subtotals the filing prints, so
+a wrong formula stops the run.
 """
 
 CORRECTION_PROMPT = """\
@@ -193,7 +206,8 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
     calculate = next(t for t in tools if t.name == "forge_calculate")
 
     # Generate initial YAML
-    prompt = GENERATION_PROMPT.format(earnings_json=json.dumps(raw_data, indent=2))
+    earnings = {key: raw_data[key] for key in MODEL_FIGURES if key in raw_data}
+    prompt = GENERATION_PROMPT.format(earnings_json=json.dumps(earnings, indent=2))
     try:
         response = await llm.ainvoke(prompt)
     except Exception:
@@ -218,9 +232,55 @@ async def modeler_node(state: SentinelState) -> dict[str, Any]:
             "forge_results": {"error": f"Validation failed after {MAX_RETRIES} attempts"},
         }
 
-    # Calculate
+    # Calculate, then check the formulas against the subtotals the filing prints
     forge_results = await _run_calculate(model_yaml, ticker, calculate=calculate)
+    if "error" not in forge_results:
+        typed = typed_results(model_yaml)
+        if typed:
+            forge_results["error"] = "A result is typed, not calculated: " + "; ".join(typed)
+        else:
+            _check_against_filing(forge_results, ticker, state.get("period") or None)
     return {"model_yaml": model_yaml, "forge_results": forge_results}
+
+
+def typed_results(model_yaml: str) -> list[str]:
+    """Return one line per output whose formula holds a number: a result typed in, not calculated.
+
+    The five outputs are sums and ratios of the inputs, so none needs a number of its
+    own; ``=54820`` would pass the filing check while calculating nothing.
+    """
+    try:
+        outputs = load_model(model_yaml).get("outputs")
+    except ModelShapeError as exc:
+        return [str(exc)]
+    if not isinstance(outputs, dict):
+        return ["the model has no outputs"]
+    problems: list[str] = []
+    for name, field in outputs.items():
+        formula = field.get("formula") if isinstance(field, dict) else field
+        if not isinstance(formula, str) or _NUMBER_IN_FORMULA.search(formula):
+            problems.append(f"outputs.{name} is {formula!r}")
+    return problems
+
+
+def _check_against_filing(forge_results: dict[str, Any], ticker: str, period: str | None) -> None:
+    """Compare Forge's results with the filing's printed subtotals; set ``error`` on a difference.
+
+    A model with a wrong formula validates and calculates; only the filing can say
+    the formula is wrong (the evaluation of 2026-11-15 found this hole).
+    """
+    try:
+        expected = load_input(ticker, period).expected
+    except (InputError, ValueError, OSError) as exc:
+        forge_results["error"] = f"Cannot check Forge's results against the filing: {exc}"
+        return
+    problems = compare_with_results(forge_results, expected)
+    forge_results["filing_check"] = {"checked": sorted(expected.results), "mismatches": problems}
+    if problems:
+        logger.error("Modeler agent: Forge's results differ from the filing: %s", problems)
+        forge_results["error"] = "Forge's results differ from the filing: " + "; ".join(problems)
+    else:
+        logger.info("Modeler agent: %d results equal the filing's", len(expected.results))
 
 
 def _strip_fences(text: str) -> str:

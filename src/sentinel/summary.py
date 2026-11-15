@@ -37,6 +37,17 @@ def _number(value: object) -> str:
     return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
 
 
+def _filing_line(filing: dict[str, Any]) -> str:
+    """Say whether Forge's results equal the subtotals the filing prints (the formula check)."""
+    checked = filing.get("checked") or []
+    if not checked:
+        return "Forge's results were not compared with the filing (a run before 0.9.0)."
+    if filing.get("mismatches"):
+        return "Differences from the filing: " + "; ".join(filing["mismatches"])
+    names = " and ".join(f"`{name}`" for name in checked)
+    return f"Forge's {names} equal the figures the filing prints (the margins are not compared)."
+
+
 def summarize(run_dir: Path) -> str:
     """Return the Markdown summary of the run in *run_dir*."""
     raw = _json(run_dir / "raw_data.json")
@@ -44,6 +55,7 @@ def summarize(run_dir: Path) -> str:
     source = raw.get("input") or {}
     checked = source.get("expected_checked_by_person")
     mismatches = source.get("expected_mismatches") or []
+    filing = results.get("filing_check") or {}
 
     lines = [
         f"## Sentinel run `{run_dir.name}`",
@@ -68,6 +80,8 @@ def summarize(run_dir: Path) -> str:
         "| Result | Forge |",
         "| --- | ---: |",
         *(f"| {name} | {_number(results.get(name))} |" for name in _RESULTS),
+        "",
+        _filing_line(filing),
         "",
         "Each result in this table is Forge's; the brief below was written by the LLM from them.",
         "",

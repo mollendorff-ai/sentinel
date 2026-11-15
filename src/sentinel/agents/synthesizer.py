@@ -29,7 +29,6 @@ FORGE CALCULATION RESULTS (deterministic -- these are the authoritative numbers)
 {risk_section}\
 {scenario_section}\
 {history_section}\
-{feedback_section}\
 
 Write a concise brief ({word_range} words) with these sections, in this order:
 
@@ -79,12 +78,6 @@ _HISTORY_SECTIONS = """\
 - **Historical Trend Analysis** -- Revenue trajectory over prior quarters. \
 Margin expansion or compression trend. EPS progression. Year-over-year comparison \
 with current quarter vs. prior year same period if available.
-"""
-
-_FEEDBACK_SECTION = """\
-
-ANALYST FEEDBACK (incorporate into the brief):
-{analyst_feedback}
 """
 
 
@@ -157,15 +150,12 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         )
         extra_sections += _HISTORY_SECTIONS
 
-    analyst_feedback = state.get("analyst_feedback", "")
-    feedback_section = (
-        _FEEDBACK_SECTION.format(analyst_feedback=analyst_feedback) if analyst_feedback else ""
-    )
-
     word_range = "400-700" if (has_risk or has_scenarios or has_history) else "300-500"
 
-    # Remove raw_output from forge_results for the prompt (verbose)
-    forge_clean = {k: v for k, v in forge_results.items() if k != "raw_output"}
+    # Leave out Forge's raw output (verbose) and Sentinel's own check of it
+    forge_clean = {
+        k: v for k, v in forge_results.items() if k not in ("raw_output", "filing_check")
+    }
 
     llm = get_llm(role="synthesizer")
     prompt = SYNTHESIS_PROMPT.format(
@@ -176,7 +166,6 @@ async def synthesizer_node(state: SentinelState) -> dict[str, Any]:
         risk_section=risk_section,
         scenario_section=scenario_section,
         history_section=history_section,
-        feedback_section=feedback_section,
         extra_sections=extra_sections,
         word_range=word_range,
     )

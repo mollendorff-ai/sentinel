@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from langgraph.checkpoint.base import BaseCheckpointSaver
+from unittest.mock import AsyncMock, patch
 
 from sentinel.graph.pipeline import _route_after_modeler, build_graph, compile_graph
 
@@ -167,28 +165,3 @@ async def test_pipeline_skips_risk_and_scenario_in_quick_mode() -> None:
     mock_risk.assert_not_called()
     mock_scenario.assert_not_called()
     assert result["brief"] == "Quick brief."
-
-
-def test_compile_graph_accepts_checkpointer() -> None:
-    """Verify compile_graph accepts a checkpointer argument."""
-    mock_checkpointer = MagicMock(spec=BaseCheckpointSaver)
-    compiled = compile_graph(checkpointer=mock_checkpointer)
-    assert hasattr(compiled, "ainvoke")
-
-
-def test_compile_graph_defaults_to_no_checkpointer() -> None:
-    """Verify compile_graph works without a checkpointer (default None)."""
-    compiled = compile_graph()
-    assert hasattr(compiled, "ainvoke")
-
-
-def test_compile_graph_accepts_interrupt_before() -> None:
-    """Verify compile_graph accepts interrupt_before list."""
-    compiled = compile_graph(interrupt_before=["synthesizer"])
-    assert hasattr(compiled, "ainvoke")
-
-
-def test_compile_graph_interrupt_before_defaults_to_empty() -> None:
-    """Verify compile_graph defaults interrupt_before to empty list."""
-    compiled = compile_graph()
-    assert hasattr(compiled, "ainvoke")

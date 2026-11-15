@@ -10,6 +10,7 @@ from sentinel.inputs import (
     Expected,
     InputError,
     compare_with_expected,
+    compare_with_results,
     latest_period,
     load_input,
     validate_period,
@@ -19,7 +20,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def _write(folder: Path, *, expected: str = "figures:\n  revenue: 10\n") -> None:
+RESULTS = "results:\n  outputs.gross_profit: 4\n"
+
+
+def _write(folder: Path, *, expected: str = "figures:\n  revenue: 10\n" + RESULTS) -> None:
     folder.mkdir(parents=True)
     (folder / "release.md").write_text("doc")
     (folder / "source.yaml").write_text("url: https://example.com\n")
@@ -29,7 +33,10 @@ def _write(folder: Path, *, expected: str = "figures:\n  revenue: 10\n") -> None
 def test_load_input_reads_all_three_files(tmp_path: Path) -> None:
     """The newest period is loaded with its document, source and expected figures."""
     _write(tmp_path / "AAPL" / "FY2026-Q3")
-    _write(tmp_path / "AAPL" / "FY2026-Q4", expected="checked: true\nfigures:\n  revenue: 12\n")
+    _write(
+        tmp_path / "AAPL" / "FY2026-Q4",
+        expected="checked: true\nfigures:\n  revenue: 12\n" + RESULTS,
+    )
 
     saved = load_input("aapl", inputs_dir=tmp_path)
 
@@ -37,7 +44,12 @@ def test_load_input_reads_all_three_files(tmp_path: Path) -> None:
     assert saved.period == "FY2026-Q4"
     assert saved.document == "doc"
     assert saved.source == {"url": "https://example.com"}
-    assert saved.expected == Expected(figures={"revenue": 12.0}, tolerance=0.5, checked=True)
+    assert saved.expected == Expected(
+        figures={"revenue": 12.0},
+        tolerance=0.5,
+        checked=True,
+        results={"outputs.gross_profit": 4.0},
+    )
 
 
 def test_load_input_named_period(tmp_path: Path) -> None:
@@ -49,7 +61,7 @@ def test_load_input_named_period(tmp_path: Path) -> None:
 
 def test_checked_must_be_true_exactly(tmp_path: Path) -> None:
     """Only `checked: true` counts as checked by a person; a string does not."""
-    _write(tmp_path / "AAPL" / "P1", expected='checked: "yes"\nfigures:\n  revenue: 1\n')
+    _write(tmp_path / "AAPL" / "P1", expected='checked: "yes"\nfigures:\n  revenue: 1\n' + RESULTS)
     assert load_input("AAPL", inputs_dir=tmp_path).expected.checked is False
 
 
@@ -58,11 +70,13 @@ def test_checked_must_be_true_exactly(tmp_path: Path) -> None:
     [
         ("- a list\n", "is not a YAML mapping"),
         ("figures: [\n", "is not valid YAML"),
-        ("checked: true\n", "has no figures"),
-        ("figures:\n  revenue: lots\n", "figure 'revenue' is not a number"),
-        ("figures:\n  revenue: true\n", "figure 'revenue' is not a number"),
-        ("figures:\n  revenue: .nan\n", "figure 'revenue' is not a number"),
-        ("tolerance: -1\nfigures:\n  revenue: 1\n", "tolerance must be a number"),
+        ("checked: true\n" + RESULTS, "has no figures"),
+        ("figures:\n  revenue: lots\n" + RESULTS, "figures 'revenue' is not a number"),
+        ("figures:\n  revenue: true\n" + RESULTS, "figures 'revenue' is not a number"),
+        ("figures:\n  revenue: .nan\n" + RESULTS, "figures 'revenue' is not a number"),
+        ("figures:\n  revenue: 1\n", "has no results"),
+        ("figures:\n  revenue: 1\nresults:\n  x: big\n", "results 'x' is not a number"),
+        ("tolerance: -1\nfigures:\n  revenue: 1\n" + RESULTS, "tolerance must be a number"),
     ],
 )
 def test_malformed_expected_file(tmp_path: Path, expected: str, message: str) -> None:
@@ -100,6 +114,30 @@ def test_validate_period_refuses_unsafe_names(bad: str) -> None:
 
 def test_compare_with_expected() -> None:
     """Matches within the tolerance pass; differences and missing figures are listed."""
-    expected = Expected(figures={"a": 10.0, "b": 20.0, "c": 30.0}, tolerance=0.5, checked=True)
+    expected = Expected(
+        figures={"a": 10.0, "b": 20.0, "c": 30.0}, tolerance=0.5, checked=True, results={}
+    )
     problems = compare_with_expected({"a": 10.4, "b": 21, "c": None}, expected)
     assert problems == ["b: expected 20, extracted 21", "c: expected 30, extracted None"]
+
+
+def test_compare_with_results() -> None:
+    """A Forge result equal to the filing passes; a wrong or missing one is listed."""
+    expected = Expected(
+        figures={},
+        tolerance=0.5,
+        checked=True,
+        results={"outputs.gross_profit": 54820.0, "outputs.operating_income": 35631.0},
+    )
+    assert (
+        compare_with_results(
+            {"outputs.gross_profit": 54820.0, "outputs.operating_income": 35631.4}, expected
+        )
+        == []
+    )
+    assert compare_with_results(
+        {"outputs.gross_profit": 54820.0, "outputs.operating_income": 74009.0}, expected
+    ) == ["outputs.operating_income: the filing prints 35631, Forge calculated 74009"]
+    assert compare_with_results({"outputs.gross_profit": 54820.0}, expected) == [
+        "outputs.operating_income: the filing prints 35631, Forge calculated None"
+    ]

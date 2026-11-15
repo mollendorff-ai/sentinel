@@ -35,7 +35,11 @@ def test_summary_of_a_good_run(tmp_path: Path) -> None:
             "expected_mismatches": [],
         },
     }
-    results = {"outputs.operating_income": 35631, "outputs.gross_margin": 0.47887}
+    results = {
+        "outputs.operating_income": 35631,
+        "outputs.gross_margin": 0.47887,
+        "filing_check": {"checked": ["outputs.operating_income"], "mismatches": []},
+    }
     text = summarize(_run(tmp_path, raw, results))
 
     assert "`inputs/AAPL/FY2026-Q4` (https://www.sec.gov/x.htm)" in text
@@ -46,6 +50,10 @@ def test_summary_of_a_good_run(tmp_path: Path) -> None:
     assert "| outputs.operating_income | 35,631 |" in text
     assert "| outputs.gross_margin | 0.4789 |" in text
     assert "All match expected.yaml." in text
+    assert (
+        "Forge's `outputs.operating_income` equal the figures the filing prints "
+        "(the margins are not compared)." in text
+    )
     assert text.index("Forge's results") < text.index("The brief.")
 
 
@@ -65,6 +73,25 @@ def test_summary_of_a_failed_run(tmp_path: Path) -> None:
     assert "Differences: revenue: expected 1, extracted 2" in text
     assert "| revenue | — |" in text
     assert "(no brief)" in text
+    assert "were not compared with the filing (a run before 0.9.0)" in text
+
+
+def test_summary_of_a_wrong_formula(tmp_path: Path) -> None:
+    """Forge's results that differ from the filing are listed."""
+    results = {
+        "error": "Forge's results differ from the filing",
+        "filing_check": {
+            "checked": ["outputs.operating_income"],
+            "mismatches": [
+                "outputs.operating_income: the filing prints 35631, Forge calculated 74009"
+            ],
+        },
+    }
+    text = summarize(_run(tmp_path, {"input": {}}, results))
+    assert (
+        "Differences from the filing: outputs.operating_income: "
+        "the filing prints 35631, Forge calculated 74009" in text
+    )
 
 
 def test_summary_of_an_empty_folder(tmp_path: Path) -> None:

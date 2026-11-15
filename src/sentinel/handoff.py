@@ -13,6 +13,7 @@ the prompt it answered: when Forge's results change, the brief is asked for agai
 from __future__ import annotations
 
 import hashlib
+import logging
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -101,3 +102,23 @@ class HandoffLLM:
     async def ainvoke(self, prompt: object) -> SimpleNamespace:
         """Return ``.content`` = the answer written for *prompt*; raise if there is none yet."""
         return SimpleNamespace(content=store().answer(self.role, str(prompt)))
+
+
+class QuietWhileWaiting(logging.Filter):
+    """Drop Sentinel's warnings and errors while a prompt waits for the chat's answer.
+
+    A prompt with no answer yet is the normal state of a chat-mode run: the agent
+    that asked stops, and the agents after it skip on its error.  Their warnings,
+    and the traceback of :class:`AnswerNeededError`, would read as a failure, so
+    while anything is pending only the WAITING block says what happened.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return False for a Sentinel warning or error logged while a prompt is pending."""
+        if record.exc_info and isinstance(record.exc_info[1], AnswerNeededError):
+            return False
+        return not (
+            store().pending
+            and record.levelno >= logging.WARNING
+            and record.name.startswith("sentinel")
+        )
