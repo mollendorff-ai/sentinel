@@ -1,0 +1,19 @@
+{
+  "inputs.cost_of_revenue": 59657.0,
+  "inputs.net_income": 30711.0,
+  "inputs.operating_expenses": 19189.0,
+  "inputs.revenue": 114477.0,
+  "outputs.gross_margin": 0.478873485503638,
+  "outputs.gross_profit": 54820.0,
+  "outputs.net_margin": 0.268272229356115,
+  "outputs.operating_income": 35631.0,
+  "outputs.operating_margin": 0.311250294819047,
+  "raw_output": "{\"dry_run\":false,\"file_updated\":true,\"scalars\":{\"inputs.cost_of_revenue\":59657.0,\"inputs.net_income\":30711.0,\"inputs.operating_expenses\":19189.0,\"inputs.revenue\":114477.0,\"outputs.gross_margin\":0.478873485503638,\"outputs.gross_profit\":54820.0,\"outputs.net_margin\":0.268272229356115,\"outputs.operating_income\":35631.0,\"outputs.operating_margin\":0.311250294819047},\"tables\":{},\"unit_warnings\":[]}",
+  "filing_check": {
+    "checked": [
+      "outputs.gross_profit",
+      "outputs.operating_income"
+    ],
+    "mismatches": []
+  }
+}

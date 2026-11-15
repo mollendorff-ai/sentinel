@@ -1,0 +1,140 @@
+{
+  "scenarios": [
+    {
+      "name": "base",
+      "probability": 0.5,
+      "revenue": 114477.0,
+      "operating_income": 35631.0,
+      "scalars": {
+        "inputs.cost_of_revenue": 59657.0,
+        "inputs.net_income": 30711.0,
+        "inputs.operating_expenses": 19189.0,
+        "inputs.revenue": 114477.0,
+        "outputs.gross_margin": 0.478873485503638,
+        "outputs.gross_profit": 54820.0,
+        "outputs.net_margin": 0.268272229356115,
+        "outputs.operating_income": 35631.0,
+        "outputs.operating_margin": 0.311250294819047
+      }
+    },
+    {
+      "name": "bear",
+      "probability": 0.25,
+      "revenue": 103029.3,
+      "operating_income": 30149.0,
+      "scalars": {
+        "inputs.cost_of_revenue": 53691.3,
+        "inputs.net_income": 27639.9,
+        "inputs.operating_expenses": 19189.0,
+        "inputs.revenue": 103029.3,
+        "outputs.gross_margin": 0.478873485503638,
+        "outputs.gross_profit": 49338.0,
+        "outputs.net_margin": 0.268272229356115,
+        "outputs.operating_income": 30149.0,
+        "outputs.operating_margin": 0.292625495854092
+      }
+    },
+    {
+      "name": "bull",
+      "probability": 0.25,
+      "revenue": 125924.7,
+      "operating_income": 41113.0,
+      "scalars": {
+        "inputs.cost_of_revenue": 65622.7,
+        "inputs.net_income": 33782.1,
+        "inputs.operating_expenses": 19189.0,
+        "inputs.revenue": 125924.7,
+        "outputs.gross_margin": 0.478873485503638,
+        "outputs.gross_profit": 60302.0,
+        "outputs.net_margin": 0.268272229356115,
+        "outputs.operating_income": 41113.0,
+        "outputs.operating_margin": 0.326488766699464
+      }
+    }
+  ],
+  "expected_values": {
+    "outputs.operating_income": 35631.0
+  },
+  "comparison": {
+    "descriptions": {
+      "base": "Base",
+      "bear": "Bear",
+      "bull": "Bull"
+    },
+    "scenarios": [
+      "bull",
+      "base",
+      "bear"
+    ],
+    "values": {
+      "inputs.cost_of_revenue": {
+        "base": 59657.0,
+        "bear": 53691.3,
+        "bull": 65622.7
+      },
+      "inputs.net_income": {
+        "base": 30711.0,
+        "bear": 27639.9,
+        "bull": 33782.1
+      },
+      "inputs.operating_expenses": {
+        "base": 19189.0,
+        "bear": 19189.0,
+        "bull": 19189.0
+      },
+      "inputs.revenue": {
+        "base": 114477.0,
+        "bear": 103029.3,
+        "bull": 125924.7
+      },
+      "outputs.gross_margin": {
+        "base": 0.478873485503638,
+        "bear": 0.478873485503638,
+        "bull": 0.478873485503638
+      },
+      "outputs.gross_profit": {
+        "base": 54820.0,
+        "bear": 49338.0,
+        "bull": 60302.0
+      },
+      "outputs.net_margin": {
+        "base": 0.268272229356115,
+        "bear": 0.268272229356115,
+        "bull": 0.268272229356115
+      },
+      "outputs.operating_income": {
+        "base": 35631.0,
+        "bear": 30149.0,
+        "bull": 41113.0
+      },
+      "outputs.operating_margin": {
+        "base": 0.311250294819047,
+        "bear": 0.292625495854092,
+        "bull": 0.326488766699464
+      }
+    },
+    "variables": [
+      "inputs.revenue",
+      "inputs.cost_of_revenue",
+      "inputs.operating_expenses",
+      "inputs.net_income",
+      "outputs.gross_profit",
+      "outputs.operating_income",
+      "outputs.gross_margin",
+      "outputs.operating_margin",
+      "outputs.net_margin"
+    ]
+  },
+  "break_even_thresholds": {
+    "vary": "inputs.revenue",
+    "target": "outputs.operating_income",
+    "target_value": 0.0,
+    "solution": 78846.0000438298,
+    "achieved": 4.38297865912318e-05,
+    "error": 4.38297865912318e-05,
+    "iterations": 35,
+    "converged": true
+  },
+  "scenario_yaml": "_forge_version: 5.1.0\ninputs:\n  revenue: 114477\n  cost_of_revenue: 59657\n  operating_expenses: 19189\n  net_income: 30711\noutputs:\n  gross_profit:\n    formula: =inputs.revenue - inputs.cost_of_revenue\n  operating_income:\n    formula: =outputs.gross_profit - inputs.operating_expenses\n  gross_margin:\n    formula: =outputs.gross_profit / inputs.revenue\n  operating_margin:\n    formula: =outputs.operating_income / inputs.revenue\n  net_margin:\n    formula: =inputs.net_income / inputs.revenue\ntornado:\n  output: outputs.operating_income\n  inputs:\n  - name: inputs.revenue\n    low: 103029.3\n    high: 125924.7\n  - name: inputs.cost_of_revenue\n    low: 53691.3\n    high: 65622.7\n  - name: inputs.operating_expenses\n    low: 17270.1\n    high: 21107.9\n  - name: inputs.net_income\n    low: 27639.9\n    high: 33782.1\nscenarios:\n  bull:\n    probability: 0.25\n    description: Bull\n    scalars:\n      revenue: 125924.7\n      cost_of_revenue: 65622.7\n      operating_expenses: 19189.0\n      net_income: 33782.1\n  base:\n    probability: 0.5\n    description: Base\n    scalars:\n      revenue: 114477.0\n      cost_of_revenue: 59657.0\n      operating_expenses: 19189.0\n      net_income: 30711.0\n  bear:\n    probability: 0.25\n    description: Bear\n    scalars:\n      revenue: 103029.3\n      cost_of_revenue: 53691.3\n      operating_expenses: 19189.0\n      net_income: 27639.9\n",
+  "assumptions": "Revenue +10% (bull) / -10% (bear); cost of revenue and net income move with revenue; operating expenses fixed. Probabilities 25/50/25 are illustrative."
+}

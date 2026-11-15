@@ -1,0 +1,21 @@
+{
+  "company": "Apple Inc.",
+  "ticker": "AAPL",
+  "period": "Q4 FY2026",
+  "currency": "USD",
+  "revenue": 114477,
+  "cost_of_revenue": 59657,
+  "gross_profit": 54820,
+  "operating_expenses": 19189,
+  "operating_income": 35631,
+  "net_income": 30711,
+  "eps": 2.1,
+  "shares_outstanding": 14630318,
+  "input": {
+    "path": "inputs/AAPL/FY2026-Q4",
+    "period": "FY2026-Q4",
+    "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/a8-kex991q4202609262026.htm",
+    "expected_checked_by_person": true,
+    "expected_mismatches": []
+  }
+}
