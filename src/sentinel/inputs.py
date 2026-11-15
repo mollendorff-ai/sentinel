@@ -4,10 +4,12 @@ An input lives in ``inputs/<TICKER>/<PERIOD>/`` (ADR-012)::
 
     release.md      the document, as saved (an earnings release from SEC EDGAR)
     source.yaml     where it came from: url, filed, saved_on, saved_with
-    expected.yaml   headline figures typed by a person from the document
+    expected.yaml   headline figures typed by a person from the document, and the
+                    subtotals the document prints that Forge must calculate
 
-A run fails when the figures the LLM extracts differ from ``expected.yaml``: Forge
-checks the arithmetic, this checks the reading.
+A run fails when the figures the LLM extracts differ from ``expected.yaml``, which
+checks the reading, and when Forge's results differ from the subtotals the filing
+prints, which checks the formulas the LLM wrote.  Forge checks the arithmetic.
 """
 
 from __future__ import annotations
@@ -41,6 +43,8 @@ class Expected:
     figures: dict[str, float]
     tolerance: float
     checked: bool
+    results: dict[str, float]
+    """Forge results the filing prints (``outputs.operating_income``): the formula check."""
 
 
 @dataclass(frozen=True)
@@ -112,23 +116,32 @@ def _mapping(path: Path) -> dict[str, Any]:
 
 def _expected(path: Path) -> Expected:
     data = _mapping(path)
-    figures = data.get("figures")
-    if not isinstance(figures, dict) or not figures:
-        msg = f"{path} has no figures"
-        raise InputError(msg)
-    parsed: dict[str, float] = {}
-    for name, value in figures.items():
-        if not _is_number(value):
-            msg = f"{path}: figure {name!r} is not a number: {value!r}"
-            raise InputError(msg)
-        parsed[str(name)] = float(value)
+    parsed = _numbers(path, data.get("figures"), "figures")
+    results = _numbers(path, data.get("results"), "results")
     tolerance = data.get("tolerance", 0.5)
     if not _is_number(tolerance) or tolerance < 0:
         msg = f"{path}: tolerance must be a number of 0 or more"
         raise InputError(msg)
     return Expected(
-        figures=parsed, tolerance=float(tolerance), checked=data.get("checked") is True
+        figures=parsed,
+        tolerance=float(tolerance),
+        checked=data.get("checked") is True,
+        results=results,
     )
+
+
+def _numbers(path: Path, section: object, name: str) -> dict[str, float]:
+    """Return the non-empty mapping *section* of numbers, or raise naming what is wrong."""
+    if not isinstance(section, dict) or not section:
+        msg = f"{path} has no {name}"
+        raise InputError(msg)
+    parsed: dict[str, float] = {}
+    for key, value in section.items():
+        if not _is_number(value):
+            msg = f"{path}: {name} {key!r} is not a number: {value!r}"
+            raise InputError(msg)
+        parsed[str(key)] = float(value)
+    return parsed
 
 
 def _is_number(value: object) -> bool:
@@ -148,4 +161,20 @@ def compare_with_expected(raw_data: dict[str, Any], expected: Expected) -> list[
             problems.append(f"{name}: expected {want:g}, extracted {got!r}")
         elif abs(float(got) - want) > expected.tolerance:
             problems.append(f"{name}: expected {want:g}, extracted {float(got):g}")
+    return problems
+
+
+def compare_with_results(forge_results: dict[str, Any], expected: Expected) -> list[str]:
+    """Return one line per subtotal Forge calculated differently from the filing, or not at all.
+
+    The LLM writes the model's formulas; this is what catches a wrong one.  Forge
+    can only say that a formula calculated, not that it is the right formula.
+    """
+    problems: list[str] = []
+    for name, want in expected.results.items():
+        got = forge_results.get(name)
+        if not _is_number(got):
+            problems.append(f"{name}: the filing prints {want:g}, Forge calculated {got!r}")
+        elif abs(float(got) - want) > expected.tolerance:
+            problems.append(f"{name}: the filing prints {want:g}, Forge calculated {float(got):g}")
     return problems

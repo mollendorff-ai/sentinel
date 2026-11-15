@@ -102,9 +102,10 @@ async def research_node(state: SentinelState) -> dict[str, Any]:
     )
     try:
         response = await get_llm(role="research").ainvoke(prompt)
-    except Exception:
+    except Exception as exc:
         logger.exception("Research agent: LLM extraction failed for %s", ticker)
-        return {"raw_data": {"error": f"LLM extraction failed for {ticker}", "ticker": ticker}}
+        reason = f"LLM extraction failed for {ticker}: {type(exc).__name__}: {exc}"
+        return {"raw_data": {"error": reason[:400], "ticker": ticker}}
     response_text = (
         response.content if isinstance(response.content, str) else str(response.content)
     )

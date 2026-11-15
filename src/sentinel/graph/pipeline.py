@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from langgraph.graph import END, START, StateGraph
 
 if TYPE_CHECKING:
-    from langgraph.checkpoint.base import BaseCheckpointSaver
     from langgraph.graph.state import CompiledStateGraph
 
 from sentinel.agents.modeler import modeler_node
@@ -65,21 +64,11 @@ def build_graph() -> StateGraph:
     return graph
 
 
-def compile_graph(
-    checkpointer: BaseCheckpointSaver | None = None,
-    *,
-    interrupt_before: list[str] | None = None,
-) -> CompiledStateGraph:
+def compile_graph() -> CompiledStateGraph:
     """Build and compile the pipeline, ready to invoke.
 
-    Parameters
-    ----------
-    checkpointer
-        Optional persistence backend. Pass a ``SqliteSaver`` (or any
-        ``BaseCheckpointSaver``) to enable run resumption.
-    interrupt_before
-        Optional list of node names where execution should pause
-        *before* entering the node, enabling human-in-the-loop review.
+    A chat-mode run starts again from the beginning each time an answer is written
+    (ADR-013), so the graph keeps no checkpoints between runs.
 
     Returns
     -------
@@ -87,7 +76,4 @@ def compile_graph(
         Executable graph supporting ``invoke`` / ``ainvoke``.
 
     """
-    return build_graph().compile(
-        checkpointer=checkpointer,
-        interrupt_before=interrupt_before or [],
-    )
+    return build_graph().compile()

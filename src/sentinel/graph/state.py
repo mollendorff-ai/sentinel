@@ -47,11 +47,3 @@ class SentinelState(TypedDict, total=False):
     Each element holds a past period's figures (period, revenue, operating
     income, etc.) and the run folder it came from.  Empty list on the first run.
     """
-
-    analyst_feedback: str
-    """Analyst feedback injected before the Synthesizer re-runs.
-
-    Set when the analyst rejects the draft analysis during the HITL approval
-    gate (``--hitl`` mode).  Empty string when no feedback was provided.
-    The Synthesizer incorporates this feedback if present.
-    """

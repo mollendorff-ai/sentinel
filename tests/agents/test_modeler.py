@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from sentinel.agents.modeler import (
     _parse_calc_results,
     _strip_fences,
     _write_temp_yaml,
     modeler_node,
+    typed_results,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 EXPECTED_MARGIN = 0.4
 EXPECTED_REVENUE = 1_000_000.0
@@ -461,3 +467,149 @@ def test_parse_calc_results_reports_plain_text_failure() -> None:
     """A plain-text calculate failure becomes an error dict, not an exception."""
     results = _parse_calc_results("Calculation failed: bad formula")
     assert results["error"].startswith("forge_calculate failed: Calculation failed")
+
+
+GOOD_MODEL = """\
+_forge_version: "5.1.0"
+inputs:
+  revenue: 114477
+  cost_of_revenue: 59657
+  operating_expenses: 19189
+  net_income: 30711
+outputs:
+  gross_profit: {formula: "=inputs.revenue - inputs.cost_of_revenue"}
+  operating_income: {formula: "=outputs.gross_profit - inputs.operating_expenses"}
+  gross_margin: {formula: "=outputs.gross_profit / inputs.revenue"}
+"""
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        (GOOD_MODEL, []),
+        (
+            GOOD_MODEL.replace('"=outputs.gross_profit - inputs', '"=35631 + 0 * inputs'),
+            ["outputs.operating_income is '=35631 + 0 * inputs.operating_expenses'"],
+        ),
+        ("outputs:\n  gross_profit: 54820\n", ["outputs.gross_profit is 54820"]),
+        ("inputs: {}\n", ["the model has no outputs"]),
+        ("- not a mapping\n", ["model is not a YAML mapping"]),
+    ],
+)
+def test_typed_results(model: str, expected: list[str]) -> None:
+    """An output whose formula holds a number, or a plain value, is typed, not calculated."""
+    assert typed_results(model) == expected
+
+
+def _filing(root: Path) -> None:
+    folder = root / "inputs" / "AAPL" / "FY2026-Q4"
+    folder.mkdir(parents=True)
+    (folder / "release.md").write_text("doc")
+    (folder / "source.yaml").write_text("url: https://www.sec.gov/x.htm\n")
+    (folder / "expected.yaml").write_text(
+        "checked: true\nfigures:\n  revenue: 114477\n"
+        "results:\n  outputs.gross_profit: 54820\n  outputs.operating_income: 35631\n"
+    )
+
+
+def _tools(scalars: dict[str, float]) -> list[MagicMock]:
+    validate = MagicMock()
+    validate.name = "forge_validate"
+    validate.ainvoke = AsyncMock(
+        return_value=_text(json.dumps({"tables_valid": True, "scalars_valid": True}))
+    )
+    calculate = MagicMock()
+    calculate.name = "forge_calculate"
+    calculate.ainvoke = AsyncMock(
+        return_value=_text(json.dumps({"scalars": scalars, "tables": {}}))
+    )
+    return [validate, calculate]
+
+
+async def _run_modeler(answer: str, scalars: dict[str, float]) -> tuple[dict[str, Any], str]:
+    llm = AsyncMock(ainvoke=AsyncMock(return_value=AsyncMock(content=answer)))
+    raw_data = {
+        "ticker": "AAPL",
+        "revenue": 114477,
+        "cost_of_revenue": 59657,
+        "operating_expenses": 19189,
+        "net_income": 30711,
+        "gross_profit": 54820,
+        "operating_income": 35631,
+        "input": {"path": "inputs/AAPL/FY2026-Q4"},
+    }
+    with (
+        patch("sentinel.agents.modeler.get_llm", return_value=llm),
+        patch(
+            "sentinel.agents.modeler.get_forge_tools",
+            new_callable=AsyncMock,
+            return_value=_tools(scalars),
+        ),
+    ):
+        result = await modeler_node({"ticker": "AAPL", "raw_data": raw_data})
+    return result["forge_results"], llm.ainvoke.call_args[0][0]
+
+
+async def test_modeler_passes_when_forge_equals_the_filing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Forge's subtotals equal the filing's: no error, and the check is recorded."""
+    _filing(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    results, prompt = await _run_modeler(
+        GOOD_MODEL, {"outputs.gross_profit": 54820, "outputs.operating_income": 35631}
+    )
+    assert "error" not in results
+    assert results["filing_check"] == {
+        "checked": ["outputs.gross_profit", "outputs.operating_income"],
+        "mismatches": [],
+    }
+    # The Modeler sees the four inputs, not the subtotals, and is given no formula.
+    assert '"revenue": 114477' in prompt
+    assert '"gross_profit": 54820' not in prompt
+    assert "inputs.revenue -" not in prompt
+    assert "/home" not in prompt
+
+
+async def test_modeler_fails_a_wrong_formula(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The evaluation's case: operating income that adds expenses fails the run."""
+    _filing(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    wrong = GOOD_MODEL.replace(
+        "outputs.gross_profit - inputs.operating_expenses",
+        "outputs.gross_profit + inputs.operating_expenses",
+    )
+    results, _ = await _run_modeler(
+        wrong, {"outputs.gross_profit": 54820, "outputs.operating_income": 74009}
+    )
+    assert results["error"] == (
+        "Forge's results differ from the filing: "
+        "outputs.operating_income: the filing prints 35631, Forge calculated 74009"
+    )
+
+
+async def test_modeler_fails_a_typed_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A result typed into a formula fails, even when it equals the filing."""
+    _filing(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    typed = GOOD_MODEL.replace('"=outputs.gross_profit - inputs.operating_expenses"', '"=35631"')
+    results, _ = await _run_modeler(
+        typed, {"outputs.gross_profit": 54820, "outputs.operating_income": 35631}
+    )
+    assert (
+        results["error"]
+        == "A result is typed, not calculated: outputs.operating_income is '=35631'"
+    )
+
+
+async def test_modeler_fails_without_a_saved_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no saved input to check against, the run fails rather than pass unchecked."""
+    monkeypatch.chdir(tmp_path)
+    results, _ = await _run_modeler(GOOD_MODEL, {"outputs.gross_profit": 54820})
+    assert results["error"].startswith("Cannot check Forge's results against the filing: ")

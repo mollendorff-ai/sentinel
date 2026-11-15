@@ -1,7 +1,9 @@
 # ADR-007: SQLite Checkpointer for Pipeline Persistence
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-014](014-check-the-formulas-and-keep-only-the-demo.md) on 2026-11-15
 **Date:** 2026-02-22
+
+> **2026-11-15:** superseded by [ADR-014](014-check-the-formulas-and-keep-only-the-demo.md). The SQLite checkpointer was removed in 0.9.0, as the demo does not use it. This ADR describes the 0.4.0 to 0.8.1 design.
 
 ## Context
 

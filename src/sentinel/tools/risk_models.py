@@ -30,7 +30,8 @@ class ModelShapeError(ValueError):
     """The model has no usable ``inputs`` or ``outputs`` section."""
 
 
-def _load(model_yaml: str) -> dict[str, Any]:
+def load_model(model_yaml: str) -> dict[str, Any]:
+    """Return the model in *model_yaml* as a mapping, or raise :class:`ModelShapeError`."""
     try:
         model = yaml.safe_load(model_yaml)
     except yaml.YAMLError as exc:
@@ -82,7 +83,7 @@ def _dump(model: dict[str, Any]) -> str:
 
 def add_tornado(model_yaml: str) -> str:
     """Return the model with a ``tornado`` section (each input at -10% / +10%)."""
-    model = _load(model_yaml)
+    model = load_model(model_yaml)
     inputs = _require(model)
     model["tornado"] = {
         "output": OUTPUT_VARIABLE,
@@ -104,7 +105,7 @@ def monte_carlo_variant(model_yaml: str) -> str:
     Forge's ``validate`` rejects ``MC.*`` formulas, so this variant is only for
     ``forge_simulate``.  Inputs are drawn independently of each other.
     """
-    model = _load(model_yaml)
+    model = load_model(model_yaml)
     inputs = _require(model)
     for name, value in inputs.items():
         formula = f"=MC.Normal({value}, {round(abs(value) * SPREAD, 6)})"
@@ -129,7 +130,7 @@ def add_scenarios(model_yaml: str) -> str:
     (margins held), operating expenses stay fixed, so operating margin changes
     through operating leverage.
     """
-    model = _load(model_yaml)
+    model = load_model(model_yaml)
     inputs = _require(model)
     model["scenarios"] = {
         name: {

@@ -17,7 +17,6 @@ stack:
   - langchain
   - langsmith (optional tracing, off by default)
   - forge (the only calculator, a pinned release)
-  - sqlite (LangGraph checkpoints)
   - SEC EDGAR filings saved in inputs/ (no web access in a run)
 
 conventions:

@@ -1,8 +1,10 @@
 # ADR-013: The demo runs in an AI chat, with the chat as the LLM
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-014](014-check-the-formulas-and-keep-only-the-demo.md) on 2026-11-15
 **Date:** 2026-11-15
 **Amends:** [ADR-012](012-sentinel-as-forge-demo.md), decision 4 (unattended in GitHub Actions) and the part of decision 5 about the workflow opening the pull request
+
+> **2026-11-15:** decision 2 said the expected-figure check and Forge "catch a misread or a wrong sum". They caught a misread and not a wrong formula; [ADR-014](014-check-the-formulas-and-keep-only-the-demo.md) adds the check that does.
 
 ## Context
 

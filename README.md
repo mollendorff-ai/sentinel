@@ -10,7 +10,7 @@
 
 An AI agent reads a company's quarterly results, writes a Forge model, and Forge validates and calculates it. The agent reads Forge's numbers, never its own arithmetic, and the run's model and results go into git as a pull request for a person to review. It is the fourth workflow of Forge's [docs/WORKFLOWS.md](https://github.com/mollendorff-ai/forge/blob/main/docs/WORKFLOWS.md), the AI pipeline, running for real ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)).
 
-> **Status (2026-11-15):** 0.9.0 is built and tested. A run happens in an AI chat, and the chat is the LLM, so no API key is needed ([ADR-013](docs/adr/013-run-in-a-chat.md)). In CI the whole pipeline runs against the real Forge on the saved Apple filing with a scripted LLM, and Forge's operating income equals the filing's (35,631 million). The maintainer checked `expected.yaml` against the filing, and the first run (AAPL, FY2026-Q4) is in git under `runs/AAPL/20261115-184457/` ([docs/FINDINGS.md](docs/FINDINGS.md) says what Forge made hard for a program). **Not shown:** a scheduled run with nobody starting it, and a second company or quarter.
+> **Status (2026-11-15):** 0.9.0. A run happens in an AI chat, and the chat is the LLM, so no API key is needed ([ADR-013](docs/adr/013-run-in-a-chat.md)). Two runs on Apple's Q4 FY2026 filing are in git: the first (`runs/AAPL/20261115-184457/`) and one made after the evaluation of the same day, with a Modeler prompt that gives no formula and the check of Forge's results against the filing (`runs/AAPL/20261115-215223/`, [ADR-014](docs/adr/014-check-the-formulas-and-keep-only-the-demo.md)). In CI the whole pipeline runs against the real Forge on the saved filing with a scripted LLM, and a model with a wrong formula fails. **Not shown:** a scheduled run with nobody starting it, and a second company or quarter.
 
 ## How a demo run works
 
@@ -33,6 +33,7 @@ sequenceDiagram
         S->>F: forge validate, forge calculate
         F-->>S: the reason it failed, or the results
     end
+    S->>S: compare Forge's gross profit and operating income with the filing's, and stop if they differ
     S->>F: simulate, tornado, break-even, scenarios
     F-->>S: risk ranges and scenarios
     S-->>C: prompt: write the brief from Forge's numbers (exit 3)
@@ -42,7 +43,7 @@ sequenceDiagram
     R->>G: review the figures, formulas and results, then merge
 ```
 
-**Two checks, two different questions.** Forge checks the arithmetic: every result comes from a formula it calculated. It cannot tell whether the LLM read the right figure from the filing, so each saved input has an `expected.yaml` of its headline figures, checked by a person, and a run whose extraction differs stops before any model is built.
+**Three checks, three different questions.** Forge checks the arithmetic: every result comes from a formula it calculated. It cannot tell whether the LLM read the right figure from the filing, so each saved input has an `expected.yaml` of its headline figures, checked by a person, and a run whose extraction differs stops before any model is built. Nor can Forge tell whether a formula is the right one, so `expected.yaml` also holds the subtotals the filing prints (gross profit and operating income), and a run whose Forge results differ stops before any brief is written. A formula with a number in it (`=35631`) fails too, so a result cannot be typed in. The margins are ratios of checked figures and are not compared with the filing.
 
 ### A saved input
 
@@ -51,10 +52,11 @@ inputs/AAPL/FY2026-Q4/
   release.htm     the filing as downloaded from SEC EDGAR (checksum in source.yaml)
   release.md      the same document as Markdown (scripts/html_to_markdown.py); what a run reads
   source.yaml     url, filing date, when and how it was saved
-  expected.yaml   revenue, cost of revenue, operating expenses, net income; checked: true|false
+  expected.yaml   revenue, cost of revenue, operating expenses, net income; checked: true|false;
+                  and results: the gross profit and operating income Forge must calculate
 ```
 
-The demo workflow refuses to run on an input whose `expected.yaml` says `checked: false`.
+`python -m sentinel` refuses to run on an input whose `expected.yaml` says `checked: false`, or that has no `results:`.
 
 ### A run
 
@@ -62,14 +64,14 @@ The demo workflow refuses to run on an input whose `expected.yaml` says `checked
 runs/AAPL/<timestamp>/
   raw_data.json           figures the LLM extracted, and the result of the expected.yaml check
   model.yaml              the Forge model the LLM wrote
-  forge_results.json      Forge's results
+  forge_results.json      Forge's results, and filing_check: the comparison with the filing's subtotals
   risk_analysis.json      Monte Carlo, tornado and break-even (full mode)
   scenario_analysis.json  bull / base / bear (full mode)
   brief.md                the LLM's brief, written from Forge's results
   llm/                    every prompt Sentinel asked and the answer it got (chat mode)
 ```
 
-Earlier runs are the history: the Retriever reads `raw_data.json` of earlier periods for the ticker from `runs/`.
+Earlier runs are the history: the Retriever reads `raw_data.json` of earlier periods for the ticker from `runs/`. A failed run is written to `.sentinel/failed/<TICKER>/<timestamp>/` instead, which git ignores, so `runs/` holds only runs that passed every check.
 
 ## Agents
 
@@ -77,24 +79,24 @@ Earlier runs are the history: the Retriever reads `raw_data.json` of earlier per
 | ----- | ---- | ----- |
 | **Research** | Reads the saved release, extracts the quarter's figures, checks them against `expected.yaml` | LLM |
 | **Retriever** | Reads earlier periods for the ticker from `runs/` | Files |
-| **Modeler** | Writes a Forge model of gross, operating and net margins, retrying up to 3 times when Forge refuses it | LLM, Forge validate + calculate (MCP) |
-| **Risk Analyst** | Monte Carlo, tornado and break-even on the inputs, built in code (inputs ±10%) | Forge simulate + tornado + break-even (MCP) |
+| **Modeler** | Writes a Forge model of gross, operating and net margins from a list of fields (the prompt gives no formula), retrying up to 3 times when Forge refuses it; Forge's subtotals must equal the filing's | LLM, Forge validate + calculate (MCP) |
+| **Risk Analyst** | Monte Carlo, tornado and break-even on the inputs, built in code (tornado: each input at -10% and +10%; Monte Carlo: each input drawn from a normal distribution whose standard deviation is 10% of its value) | Forge simulate + tornado + break-even (MCP) |
 | **Scenario Planner** | Bull / base / bear, built in code (revenue ±10%, probability-weighted) | Forge scenarios + compare (MCP) |
 | **Synthesizer** | Writes the brief from Forge's results | LLM |
 
-In `--quick` mode the Risk Analyst and Scenario Planner are skipped. `--hitl` and the MCP server stay, but the demo's human review is the pull request.
+In `--quick` mode the Risk Analyst and Scenario Planner are skipped. The human review is the pull request.
 
 **Limits:**
 
 - One saved input so far: Apple, fourth quarter of fiscal 2026.
-- Risk ranges and scenarios use fixed assumptions (±10%) applied to one quarter. They describe those assumptions, not the company's real uncertainty.
+- Risk ranges and scenarios use fixed assumptions applied to one quarter: 10% is a bound in the tornado and the scenarios, and a standard deviation in the Monte Carlo, so about one draw in three falls outside ±10%. They describe those assumptions, not the company's real uncertainty.
 - The brief is written by an LLM from Forge's results. Nothing yet checks the text against the numbers.
 
 ## Run the demo in a chat
 
 The AI in a chat that can run commands (Claude Code, or a Claude chat with code execution) installs Sentinel and the pinned Forge in its sandbox and plays the LLM: Sentinel writes each LLM prompt to a file and stops, the AI writes the answer and runs Sentinel again. Sentinel's code does everything else, and the run costs nothing beyond the chat ([ADR-013](docs/adr/013-run-in-a-chat.md)).
 
-First, a person checks the four figures in `inputs/AAPL/FY2026-Q4/expected.yaml` against the filing at the url in `source.yaml` and sets `checked: true`. Until then Sentinel refuses to run, unless given `--allow-unchecked` for a test.
+First, a person checks the figures and the two subtotals in `inputs/AAPL/FY2026-Q4/expected.yaml` against the filing at the url in `source.yaml` and sets `checked: true`. Until then Sentinel refuses to run, unless given `--allow-unchecked` for a test.
 
 Then paste this into the chat:
 
@@ -115,7 +117,8 @@ through files, and does everything else itself.
      SENTINEL_LLM_PROVIDER=chat PATH="$PWD/.venv/bin:$PATH" .venv/bin/python -m sentinel AAPL
    Each time it exits with 3 it prints a prompt file and an answer file.
    Read the prompt in full, write exactly what it asks for into the answer
-   file, and run the same command again. It ends with 0 (done) or 1 (failed).
+   file, and run the same command again. It ends with 0 (done) or 1 (failed;
+   the failed run is in .sentinel/failed/: show me why, and commit nothing).
 
 3. Rules for your answers: copy every number from the document or from
    Forge's results in the prompt, never calculate one yourself. Do not edit
@@ -146,7 +149,7 @@ make check                                # lint + unit tests (100% coverage), n
 make test-integration                     # against the real Forge, no key needed
 ```
 
-`python -m sentinel` exits with 1 when a run fails (figures that differ from `expected.yaml`, a model Forge refuses, no brief), 2 when the input is missing or its `expected.yaml` is not checked, and 3 while a chat-mode prompt waits for its answer.
+`python -m sentinel` exits with 1 when a run fails (figures that differ from `expected.yaml`, a model Forge refuses, Forge results that differ from the filing's subtotals, no brief), 2 when the input is missing, its `expected.yaml` is not checked, or an API provider has no key, and 3 while a chat-mode prompt waits for its answer.
 
 ## Stack
 
@@ -156,9 +159,6 @@ make test-integration                     # against the real Forge, no key neede
 | Calculation | [Forge](https://github.com/mollendorff-ai/forge) v10.0.0-rc.26 via MCP, the only calculator, pinned in `scripts/install-forge.sh` |
 | LLM in a demo run | the AI in the chat, through prompt and answer files ([ADR-013](docs/adr/013-run-in-a-chat.md)) |
 | Record and review | git and a pull request ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)) |
-| Checkpoints | SQLite ([why?](docs/adr/007-sqlite-checkpointer.md)) |
-| HITL | `interrupt_before` + checkpointer, opt-in via `--hitl` ([ADR-010](docs/adr/010-hitl-interrupt-before-synthesizer.md)) |
-| MCP server | FastMCP over stdio: `sentinel_analyze` + `sentinel_resume` ([ADR-011](docs/adr/011-sentinel-as-mcp-server.md)) |
 | LLM outside the demo | Any LangChain-compatible model with its API key -- [swap with one env var](docs/adr/004-multi-provider-llm-support.md) |
 | Observability | LangSmith, optional and off by default |
 
@@ -167,30 +167,9 @@ make test-integration                     # against the real Forge, no key neede
 | Version | Summary | Status |
 | ------- | ------- | ------ |
 | v0.1.0 to v0.8.1 | Agents, Forge over MCP, risk and scenarios, checkpoints, HITL, MCP server | Shipped |
-| v0.9.0 | Forge demo: a saved SEC input checked against `expected.yaml`, no Qdrant, Forge pinned, a run in an AI chat with the chat as the LLM, reviewed as a pull request | Built; first reviewed run to come |
+| v0.9.0 | Forge demo: a saved SEC input checked against `expected.yaml`, Forge's results checked against the filing, no Qdrant, Forge pinned, a run in an AI chat with the chat as the LLM, reviewed as a pull request; `--hitl`, the MCP server and the checkpointer removed ([ADR-014](docs/adr/014-check-the-formulas-and-keep-only-the-demo.md)) | Shipped (2026-11-15) |
 
 Each item, with its acceptance, is in [.asimov/roadmap.yaml](.asimov/roadmap.yaml). History is in the [CHANGELOG](CHANGELOG.md).
-
-## MCP Server
-
-Sentinel exposes itself as an MCP server over stdio ([ADR-011](docs/adr/011-sentinel-as-mcp-server.md)). It is not part of the demo.
-
-| Tool | Description |
-| ---- | ----------- |
-| `sentinel_analyze` | Run the pipeline on the ticker's saved input to the approval gate. Returns `thread_id` + draft snapshot. |
-| `sentinel_resume` | Resume from checkpoint. Pass `decision="approve"` or `"reject"` with optional `feedback`. Returns final brief. |
-
-```json
-{
-  "mcpServers": {
-    "sentinel": {
-      "command": "python",
-      "args": ["-m", "sentinel", "mcp"],
-      "cwd": "/path/to/sentinel"
-    }
-  }
-}
-```
 
 ## License
 

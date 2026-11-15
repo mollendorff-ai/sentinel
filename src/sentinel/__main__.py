@@ -1,9 +1,4 @@
-"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--hitl] [--period P] AAPL``.
-
-Subcommands
------------
-``python -m sentinel mcp``  — start MCP server on stdio transport.
-"""
+"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--period P] AAPL``."""
 
 from __future__ import annotations
 
@@ -11,20 +6,16 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from dotenv import load_dotenv
 
 from sentinel import __version__, handoff
-from sentinel.approval import prompt_approval, show_draft_summary
-from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
-from sentinel.handoff import CHAT_PROVIDER
+from sentinel.handoff import CHAT_PROVIDER, QuietWhileWaiting
 from sentinel.inputs import InputError, load_input, validate_period
-from sentinel.llm import PROVIDER_DEFAULTS
-from sentinel.mcp import run_mcp_server
-from sentinel.output import write_run_output
+from sentinel.llm import PROVIDER_DEFAULTS, missing_api_key
+from sentinel.output import FAILED_OUTPUT_DIR, write_run_output
 from sentinel.validation import validate_ticker
 
 if TYPE_CHECKING:
@@ -68,11 +59,16 @@ def _finish(result: dict[str, Any]) -> str:
         sys.stdout.write("\n")
         return "waiting"
 
-    run_dir = write_run_output(result)
+    reason = run_failed(result)
+    # A failed run is kept out of runs/, which is committed and read as history (ADR-012).
+    run_dir = (
+        write_run_output(result, output_dir=FAILED_OUTPUT_DIR)
+        if reason
+        else write_run_output(result)
+    )
     handoff.store().keep(run_dir)
     sys.stdout.write(f"{result.get('brief', 'No brief generated.')}\n")
     sys.stdout.write(f"Output: {run_dir}\n")
-    reason = run_failed(result)
     if reason:
         sys.stdout.write(f"FAILED: {reason}\n")
     sys.stdout.write("\n")
@@ -89,87 +85,66 @@ _AGENT_LABELS: dict[str, str] = {
 }
 
 
-async def _run_all(  # noqa: PLR0913 - one keyword per CLI option
+async def _run_all(
     tickers: list[str],
     *,
     period: str | None,
     quick: bool,
-    hitl: bool,
     provider: str,
     model: str,
 ) -> tuple[int, int]:
     """Run the pipeline for each ticker; return (runs failed, runs waiting for the chat)."""
     mode = "quick" if quick else "full"
-    interrupt = ["synthesizer"] if hitl else None
     failures = 0
     waiting = 0
+    graph = compile_graph()
 
-    async with create_checkpointer() as checkpointer:
-        graph = compile_graph(checkpointer=checkpointer, interrupt_before=interrupt)
+    for ticker in tickers:
+        config = {
+            "run_name": f"sentinel-{ticker}-{mode}",
+            "tags": [f"ticker:{ticker}", f"mode:{mode}", f"v{VERSION}"],
+            "metadata": {
+                "ticker": ticker,
+                "mode": mode,
+                "version": VERSION,
+                "provider": provider,
+                "model": model,
+            },
+        }
 
-        for ticker in tickers:
-            timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-            config = {
-                "run_name": f"sentinel-{ticker}-{mode}",
-                "tags": [f"ticker:{ticker}", f"mode:{mode}", f"v{VERSION}"],
-                "metadata": {
-                    "ticker": ticker,
-                    "mode": mode,
-                    "version": VERSION,
-                    "provider": provider,
-                    "model": model,
-                },
-                "configurable": {
-                    "thread_id": f"{ticker}-{timestamp}",
-                },
-            }
+        sys.stdout.write(f"--- {ticker} ---\n")
+        handoff.store().reset()
+        result: dict[str, Any] = {}
+        async for update in graph.astream(
+            {"ticker": ticker, "quick": quick, "period": period or ""},
+            config=config,
+            stream_mode="updates",
+        ):
+            for node_name, values in update.items():
+                sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
+                result.update(values or {})
 
-            sys.stdout.write(f"--- {ticker} ---\n")
-            handoff.store().reset()
-
-            # Stream first pass (halts at interrupt if hitl=True)
-            async for update in graph.astream(
-                {"ticker": ticker, "quick": quick, "period": period or ""},
-                config=config,
-                stream_mode="updates",
-            ):
-                for node_name in update:
-                    sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
-
-            # HITL approval gate
-            if hitl:
-                snapshot = await graph.aget_state(config)
-                if snapshot.next and "synthesizer" in snapshot.next:
-                    show_draft_summary(snapshot.values)
-                    approved, feedback = prompt_approval()
-                    if not approved and feedback:
-                        await graph.aupdate_state(config, {"analyst_feedback": feedback})
-                    # Resume from interrupt
-                    async for update in graph.astream(None, config=config, stream_mode="updates"):
-                        for node_name in update:
-                            sys.stdout.write(f"  [{_AGENT_LABELS.get(node_name, node_name)}]\n")
-
-            outcome = _finish(dict((await graph.aget_state(config)).values))
-            failures += outcome == "failed"
-            waiting += outcome == "waiting"
+        outcome = _finish({"ticker": ticker, **result})
+        failures += outcome == "failed"
+        waiting += outcome == "waiting"
 
     return failures, waiting
 
 
 _USAGE = (
-    "Usage: python -m sentinel [--quick] [--hitl] [--period PERIOD] <TICKER> [TICKER ...]\n"
+    "Usage: python -m sentinel [--quick] [--period PERIOD] <TICKER> [TICKER ...]\n"
     "  Reads the saved input in inputs/<TICKER>/<PERIOD>/ (the newest period by default)\n"
-    "  and writes the run to runs/<TICKER>/<timestamp>/. Exits 1 if a run failed,\n"
+    "  and writes the run to runs/<TICKER>/<timestamp>/, or a failed run to\n"
+    "  .sentinel/failed/<TICKER>/<timestamp>/. Exits 1 if a run failed,\n"
     "  3 if it waits for the chat to answer a prompt (SENTINEL_LLM_PROVIDER=chat).\n"
     "  --quick      Skip risk analysis and scenario planning\n"
-    "  --hitl       Pause before Synthesizer for analyst approval\n"
     "  --period P   Read inputs/<TICKER>/P/ instead of the newest period\n"
     "  --allow-unchecked  Run even if expected.yaml is not checked by a person\n"
     "  --version    Print the version\n"
     "  --help       Show this help\n"
     "Example: python -m sentinel AAPL MSFT GOOG\n"
 )
-_FLAGS = {"--quick", "--hitl", "--allow-unchecked"}
+_FLAGS = {"--quick", "--allow-unchecked"}
 
 
 def _check_inputs(tickers: list[str], period: str | None, *, allow_unchecked: bool) -> None:
@@ -209,11 +184,6 @@ def main() -> None:
     """Run the Sentinel earnings-analysis pipeline for one or more tickers."""
     load_dotenv()  # reads .env from the current folder; real environment variables win
 
-    # MCP subcommand — dispatch before touching the other arguments
-    if len(sys.argv) > 1 and sys.argv[1] == "mcp":
-        run_mcp_server()
-        sys.exit(0)
-
     args = sys.argv[1:]
     if "--help" in args or "-h" in args:
         sys.stdout.write(_USAGE)
@@ -230,7 +200,6 @@ def main() -> None:
         sys.exit(2)
 
     quick = "--quick" in args
-    hitl = "--hitl" in args
     names = [a for a in args if a not in _FLAGS]
 
     if not names:
@@ -244,13 +213,20 @@ def main() -> None:
         sys.exit(2)
     _check_inputs(tickers, period, allow_unchecked="--allow-unchecked" in args)
 
+    provider = os.environ.get("SENTINEL_LLM_PROVIDER", "anthropic").lower()
+    key_problem = missing_api_key(provider)
+    if key_problem:
+        sys.stderr.write(f"{key_problem}\n")
+        sys.exit(2)
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%H:%M:%S",
     )
-
-    provider = os.environ.get("SENTINEL_LLM_PROVIDER", "anthropic").lower()
+    # While a prompt waits for the chat, the agents after it fail on purpose; say only WAITING.
+    for log_handler in logging.getLogger().handlers:
+        log_handler.addFilter(QuietWhileWaiting())
     chat_label = (CHAT_PROVIDER, "the AI in this chat")
     _, default_model = PROVIDER_DEFAULTS.get(
         provider, chat_label if provider == CHAT_PROVIDER else ("", "unknown")
@@ -263,7 +239,7 @@ def main() -> None:
     )
 
     failures, waiting = asyncio.run(
-        _run_all(tickers, period=period, quick=quick, hitl=hitl, provider=provider, model=model),
+        _run_all(tickers, period=period, quick=quick, provider=provider, model=model),
     )
     if failures:
         sys.exit(1)

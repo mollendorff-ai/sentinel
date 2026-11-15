@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PROVIDER_DEFAULTS: dict[str, tuple[str, str]] = {
-    "anthropic": ("langchain_anthropic", "claude-opus-4-6"),
+    "anthropic": ("langchain_anthropic", "claude-sonnet-5-5"),
     "openai": ("langchain_openai", "gpt-4o-mini"),
     "google": ("langchain_google_genai", "gemini-2.5-flash"),
     "groq": ("langchain_groq", "llama-3.3-70b-versatile"),
@@ -30,7 +30,38 @@ _CLASS_NAMES: dict[str, str] = {
 }
 
 
+API_KEY_VARIABLES: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "groq": "GROQ_API_KEY",
+}
+"""The environment variable that holds each provider's API key."""
+
+_PLACEHOLDER_PREFIX = "your-"
+"""How ``.env.example`` writes a key that was never filled in."""
+
 DEFAULT_MAX_TOKENS = 2048
+
+
+def missing_api_key(provider: str) -> str:
+    """Return why *provider* cannot be called (no key, or the example's placeholder), or ``""``.
+
+    The ``chat`` provider needs no key, and an unknown provider is reported by
+    :func:`get_llm`.
+    """
+    variable = API_KEY_VARIABLES.get(provider)
+    if variable is None:
+        return ""
+    value = os.environ.get(variable, "").strip()
+    if value and not value.startswith(_PLACEHOLDER_PREFIX):
+        return ""
+    state = "still holds the example's placeholder" if value else "is not set"
+    return (
+        f"SENTINEL_LLM_PROVIDER={provider} needs an API key, and {variable} {state}.\n"
+        f"Set {variable} in .env, or run in a chat with SENTINEL_LLM_PROVIDER=chat "
+        "(no key needed; see the README)."
+    )
 
 
 def get_llm(*, max_tokens: int = DEFAULT_MAX_TOKENS, role: str = "llm") -> BaseChatModel:
