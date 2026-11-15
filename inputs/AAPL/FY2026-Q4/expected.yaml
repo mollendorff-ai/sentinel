@@ -2,10 +2,10 @@
 # consolidated statements of operations, three months ended September 26, 2026,
 # in millions of US dollars.
 #
-# Drafted by Claude from release.md on 2026-11-15. A person checks each figure
-# against the filing at the url in source.yaml, then sets checked: true. Until
-# then the demo workflow refuses to run.
-checked: false
+# Drafted by Claude from release.md on 2026-11-15. Checked by the maintainer,
+# figure by figure against the filing at the url in source.yaml, on 2026-11-15.
+# With checked: false, python -m sentinel refuses to run (ADR-013).
+checked: true
 tolerance: 0.5
 figures:
   revenue: 114477            # Total net sales
