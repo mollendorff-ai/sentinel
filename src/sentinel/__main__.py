@@ -1,4 +1,4 @@
-"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--hitl] AAPL [MSFT ...]``.
+"""Sentinel CLI entry point — ``python -m sentinel [--quick] [--hitl] [--period P] AAPL``.
 
 Subcommands
 -----------
@@ -20,30 +20,24 @@ from sentinel import __version__
 from sentinel.approval import prompt_approval, show_draft_summary
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
+from sentinel.inputs import validate_period
 from sentinel.llm import PROVIDER_DEFAULTS
 from sentinel.mcp import run_mcp_server
 from sentinel.output import write_run_output
-from sentinel.rag.store import create_store, ingest
 from sentinel.validation import validate_ticker
 
 VERSION = __version__
 
 
-def _maybe_ingest(ticker: str, raw_data: dict[str, Any]) -> None:
-    """Ingest raw_data into Qdrant; non-fatal on failure."""
-    if not raw_data or "error" in raw_data:
-        return
-    try:
-        store = create_store()
-        try:
-            ingest(store, raw_data)
-        finally:
-            store.close()
-    except (OSError, RuntimeError, ValueError):
-        logging.getLogger(__name__).warning(
-            "Sentinel: Qdrant ingest failed for %s (non-fatal)",
-            ticker,
-        )
+def run_failed(result: dict[str, Any]) -> str:
+    """Return why a finished run failed, or an empty string if it produced a brief."""
+    for key in ("raw_data", "forge_results"):
+        error = (result.get(key) or {}).get("error")
+        if error:
+            return f"{key}: {error}"
+    if not result.get("brief"):
+        return "no brief was written"
+    return ""
 
 
 _AGENT_LABELS: dict[str, str] = {
@@ -56,17 +50,19 @@ _AGENT_LABELS: dict[str, str] = {
 }
 
 
-async def _run_all(
+async def _run_all(  # noqa: PLR0913 - one keyword per CLI option
     tickers: list[str],
     *,
+    period: str | None,
     quick: bool,
     hitl: bool,
     provider: str,
     model: str,
-) -> None:
-    """Run the pipeline for each ticker sequentially."""
+) -> int:
+    """Run the pipeline for each ticker sequentially; return how many runs failed."""
     mode = "quick" if quick else "full"
     interrupt = ["synthesizer"] if hitl else None
+    failures = 0
 
     async with create_checkpointer() as checkpointer:
         graph = compile_graph(checkpointer=checkpointer, interrupt_before=interrupt)
@@ -92,7 +88,7 @@ async def _run_all(
 
             # Stream first pass (halts at interrupt if hitl=True)
             async for update in graph.astream(
-                {"ticker": ticker, "quick": quick},
+                {"ticker": ticker, "quick": quick, "period": period or ""},
                 config=config,
                 stream_mode="updates",
             ):
@@ -116,23 +112,46 @@ async def _run_all(
 
             run_dir = write_run_output(result)
 
-            # Ingest current raw_data into Qdrant for future trend analysis
-            _maybe_ingest(ticker, result.get("raw_data", {}))
-
             brief = result.get("brief", "No brief generated.")
             sys.stdout.write(f"{brief}\n")
-            sys.stdout.write(f"Output: {run_dir}\n\n")
+            sys.stdout.write(f"Output: {run_dir}\n")
+            reason = run_failed(result)
+            if reason:
+                failures += 1
+                sys.stdout.write(f"FAILED: {reason}\n")
+            sys.stdout.write("\n")
+
+    return failures
 
 
 _USAGE = (
-    "Usage: python -m sentinel [--quick] [--hitl] <TICKER> [TICKER ...]\n"
+    "Usage: python -m sentinel [--quick] [--hitl] [--period PERIOD] <TICKER> [TICKER ...]\n"
+    "  Reads the saved input in inputs/<TICKER>/<PERIOD>/ (the newest period by default)\n"
+    "  and writes the run to runs/<TICKER>/<timestamp>/. Exits 1 if a run failed.\n"
     "  --quick      Skip risk analysis and scenario planning\n"
     "  --hitl       Pause before Synthesizer for analyst approval\n"
+    "  --period P   Read inputs/<TICKER>/P/ instead of the newest period\n"
     "  --version    Print the version\n"
     "  --help       Show this help\n"
     "Example: python -m sentinel AAPL MSFT GOOG\n"
 )
 _FLAGS = {"--quick", "--hitl"}
+
+
+def _take_period(args: list[str]) -> tuple[list[str], str | None]:
+    """Remove ``--period P`` from *args*; exit with a message if it is malformed."""
+    if "--period" not in args:
+        return args, None
+    at = args.index("--period")
+    if at + 1 >= len(args) or args[at + 1].startswith("-"):
+        sys.stderr.write(f"--period needs a value\n{_USAGE}")
+        sys.exit(2)
+    try:
+        period = validate_period(args[at + 1])
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        sys.exit(2)
+    return args[:at] + args[at + 2 :], period
 
 
 def main() -> None:
@@ -151,6 +170,8 @@ def main() -> None:
     if "--version" in args:
         sys.stdout.write(f"sentinel {VERSION}\n")
         sys.exit(0)
+
+    args, period = _take_period(args)
 
     unknown = [a for a in args if a.startswith("-") and a not in _FLAGS]
     if unknown:
@@ -186,7 +207,11 @@ def main() -> None:
         f"Sentinel v{VERSION} — Analyzing {', '.join(tickers)} ({mode} mode, LLM: {model})\n\n",
     )
 
-    asyncio.run(_run_all(tickers, quick=quick, hitl=hitl, provider=provider, model=model))
+    failures = asyncio.run(
+        _run_all(tickers, period=period, quick=quick, hitl=hitl, provider=provider, model=model),
+    )
+    if failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

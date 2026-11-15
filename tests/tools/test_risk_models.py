@@ -49,7 +49,7 @@ MC_STD = 100
 
 
 def test_numeric_inputs_skips_null_zero_bool_and_formulas() -> None:
-    """Numeric inputs skips null zero bool and formulas."""
+    """Plain numbers (5.1.0) and value mappings (5.0.0) count; null, zero, bool, formulas not."""
     model = {
         "inputs": {
             "a": {"value": 5, "formula": None},
@@ -58,9 +58,12 @@ def test_numeric_inputs_skips_null_zero_bool_and_formulas() -> None:
             "d": {"value": True, "formula": None},
             "e": {"value": 7, "formula": "=a"},
             "f": 3,
+            "g": 0,
+            "h": False,
+            "i": {"formula": "=a"},
         },
     }
-    assert numeric_inputs(model) == {"a": 5.0}
+    assert numeric_inputs(model) == {"a": 5.0, "f": 3.0}
 
 
 def test_numeric_inputs_without_inputs_section() -> None:
@@ -115,3 +118,10 @@ def test_builders_reject_unusable_models(builder: object, bad: str) -> None:
     """Builders reject unusable models."""
     with pytest.raises(ModelShapeError):
         builder(bad)  # type: ignore[operator]
+
+
+def test_monte_carlo_variant_keeps_the_5_1_0_input_form() -> None:
+    """A plain-number input (format 5.1.0) becomes a formula mapping with no value key."""
+    plain = MODEL.replace("  revenue:\n    value: 1000\n    formula: null\n", "  revenue: 1000\n")
+    model = yaml.safe_load(monte_carlo_variant(plain))
+    assert model["inputs"]["revenue"] == {"formula": f"=MC.Normal(1000.0, {float(MC_STD)})"}

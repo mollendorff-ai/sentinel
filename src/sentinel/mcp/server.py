@@ -17,7 +17,6 @@ from sentinel import __version__
 from sentinel.checkpointer import create_checkpointer
 from sentinel.graph.pipeline import compile_graph
 from sentinel.output import write_run_output
-from sentinel.rag.store import create_store, ingest
 from sentinel.validation import validate_ticker
 
 logger = logging.getLogger(__name__)
@@ -103,21 +102,6 @@ async def sentinel_analyze(
     }
 
 
-def _try_ingest(state: dict[str, Any], thread_id: str) -> None:
-    """Non-fatal Qdrant ingest (same pattern as ``__main__.py``)."""
-    raw_data = state.get("raw_data", {})
-    if not raw_data or "error" in raw_data:
-        return
-    try:
-        store = create_store()
-        try:
-            ingest(store, raw_data)
-        finally:
-            store.close()
-    except (OSError, RuntimeError):
-        logger.warning("Qdrant ingest failed for thread %s (non-fatal)", thread_id)
-
-
 @mcp.tool()
 async def sentinel_resume(
     thread_id: Annotated[str, Field(description="Thread ID returned by sentinel_analyze")],
@@ -169,7 +153,6 @@ async def sentinel_resume(
             state = dict(snapshot.values)
 
             output_dir = write_run_output(state)
-            _try_ingest(state, thread_id)
 
     except ValueError:
         raise

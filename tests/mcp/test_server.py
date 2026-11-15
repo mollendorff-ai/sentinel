@@ -230,10 +230,8 @@ class TestSentinelResume:
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch(
                 "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
+                return_value=Path("runs/AAPL/20260226"),
             ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             await sentinel_resume(
                 thread_id="AAPL-20260226-120000",
@@ -255,10 +253,8 @@ class TestSentinelResume:
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch(
                 "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
+                return_value=Path("runs/AAPL/20260226"),
             ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             await sentinel_resume(
                 thread_id="AAPL-20260226-120000",
@@ -281,10 +277,8 @@ class TestSentinelResume:
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch(
                 "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
+                return_value=Path("runs/AAPL/20260226"),
             ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             await sentinel_resume(
                 thread_id="AAPL-20260226-120000",
@@ -318,10 +312,8 @@ class TestSentinelResume:
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch(
                 "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
+                return_value=Path("runs/AAPL/20260226"),
             ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             result = await sentinel_resume(
                 thread_id="AAPL-20260226-120000",
@@ -335,7 +327,7 @@ class TestSentinelResume:
         """Verify write_run_output is called with the final state."""
         state: dict[str, Any] = {"ticker": "AAPL", "brief": "Brief."}
         mock_graph = _mock_graph(state, next_nodes=())
-        mock_write = MagicMock(return_value=Path("output/AAPL/20260226"))
+        mock_write = MagicMock(return_value=Path("runs/AAPL/20260226"))
 
         with (
             patch(
@@ -344,8 +336,6 @@ class TestSentinelResume:
             ),
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch("sentinel.mcp.server.write_run_output", mock_write),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             await sentinel_resume(
                 thread_id="AAPL-20260226-120000",
@@ -353,97 +343,6 @@ class TestSentinelResume:
             )
 
         mock_write.assert_called_once_with(state)
-
-    async def test_ingests_to_qdrant(self) -> None:
-        """Verify ingest is called when raw_data is present and has no error."""
-        raw_data: dict[str, Any] = {
-            "ticker": "AAPL",
-            "period": "Q1 2026",
-            "revenue": 94800,
-        }
-        state: dict[str, Any] = {"ticker": "AAPL", "brief": "B.", "raw_data": raw_data}
-        mock_graph = _mock_graph(state, next_nodes=())
-        mock_store = MagicMock()
-        mock_ingest = MagicMock()
-
-        with (
-            patch(
-                "sentinel.mcp.server.create_checkpointer",
-                return_value=_mock_checkpointer(),
-            ),
-            patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
-            patch(
-                "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
-            ),
-            patch("sentinel.mcp.server.create_store", return_value=mock_store),
-            patch("sentinel.mcp.server.ingest", mock_ingest),
-        ):
-            await sentinel_resume(
-                thread_id="AAPL-20260226-120000",
-                decision="approve",
-            )
-
-        mock_ingest.assert_called_once_with(mock_store, raw_data)
-
-    async def test_skips_ingest_on_error_data(self) -> None:
-        """Verify ingest is NOT called when raw_data contains an error key."""
-        state: dict[str, Any] = {
-            "ticker": "AAPL",
-            "brief": "B.",
-            "raw_data": {"error": "ref_fetch failed"},
-        }
-        mock_graph = _mock_graph(state, next_nodes=())
-        mock_ingest = MagicMock()
-
-        with (
-            patch(
-                "sentinel.mcp.server.create_checkpointer",
-                return_value=_mock_checkpointer(),
-            ),
-            patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
-            patch(
-                "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
-            ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest", mock_ingest),
-        ):
-            await sentinel_resume(
-                thread_id="AAPL-20260226-120000",
-                decision="approve",
-            )
-
-        mock_ingest.assert_not_called()
-
-    async def test_ingest_failure_nonfatal(self) -> None:
-        """Verify result is still returned when ingest raises an exception."""
-        raw_data: dict[str, Any] = {"ticker": "AAPL", "period": "Q1 2026"}
-        state: dict[str, Any] = {"ticker": "AAPL", "brief": "B.", "raw_data": raw_data}
-        mock_graph = _mock_graph(state, next_nodes=())
-
-        with (
-            patch(
-                "sentinel.mcp.server.create_checkpointer",
-                return_value=_mock_checkpointer(),
-            ),
-            patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
-            patch(
-                "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
-            ),
-            patch(
-                "sentinel.mcp.server.create_store",
-                side_effect=RuntimeError("qdrant down"),
-            ),
-        ):
-            result = await sentinel_resume(
-                thread_id="AAPL-20260226-120000",
-                decision="approve",
-            )
-
-        assert result["status"] == "complete"
-        assert result["brief"] == "B."
 
     async def test_with_ctx_logs_info(self) -> None:
         """Verify ctx.info is called when ctx is provided."""
@@ -459,10 +358,8 @@ class TestSentinelResume:
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch(
                 "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
+                return_value=Path("runs/AAPL/20260226"),
             ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             await sentinel_resume(
                 thread_id="AAPL-20260226-120000",
@@ -485,10 +382,8 @@ class TestSentinelResume:
             patch("sentinel.mcp.server.compile_graph", return_value=mock_graph),
             patch(
                 "sentinel.mcp.server.write_run_output",
-                return_value=Path("output/AAPL/20260226"),
+                return_value=Path("runs/AAPL/20260226"),
             ),
-            patch("sentinel.mcp.server.create_store"),
-            patch("sentinel.mcp.server.ingest"),
         ):
             result = await sentinel_resume(
                 thread_id="AAPL-20260226-120000",

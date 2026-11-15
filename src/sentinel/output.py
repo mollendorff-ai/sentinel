@@ -12,7 +12,8 @@ from sentinel.validation import validate_ticker
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_OUTPUT_DIR = Path("output")
+DEFAULT_OUTPUT_DIR = Path("runs")
+"""Runs are committed to git (ADR-012), so they live in a tracked folder."""
 
 
 def write_run_output(
@@ -24,7 +25,7 @@ def write_run_output(
 
     Creates::
 
-        output/{TICKER}/{YYYYMMDD-HHMMSS}/
+        runs/{TICKER}/{YYYYMMDD-HHMMSS}/
             brief.md
             raw_data.json
             model.yaml

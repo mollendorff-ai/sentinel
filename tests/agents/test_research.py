@@ -1,272 +1,161 @@
-"""Tests for the Research agent node."""
+"""Tests for the Research agent node: saved input in, checked figures out."""
 
 from __future__ import annotations
 
 import json
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING, Any
+from unittest.mock import AsyncMock, patch
 
-from sentinel.agents.research import _build_urls, _parse_llm_response, research_node
+import pytest
 
-EXPECTED_REVENUE = 100_000
-EXPECTED_REVENUE_PARTIAL = 50_000
-EXPECTED_URL_COUNT = 2
+from sentinel.agents.research import _parse_llm_response, research_node
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-def _mock_ref_tools(
-    mcp_response: list[dict[str, Any]] | None = None,
-    *,
-    side_effect: Exception | None = None,
-) -> AsyncMock:
-    """Build a mock get_ref_tools that returns a ref_fetch tool with the given response."""
-    ref_fetch_tool = MagicMock()
-    ref_fetch_tool.name = "ref_fetch"
-    if side_effect is not None:
-        ref_fetch_tool.ainvoke = AsyncMock(side_effect=side_effect)
-    else:
-        ref_fetch_tool.ainvoke = AsyncMock(return_value=mcp_response)
-    return AsyncMock(return_value=[ref_fetch_tool])
+REVENUE = 100_000
+FIGURES = {"revenue": REVENUE, "cost_of_revenue": 60_000, "net_income": 25_000}
 
 
-def _mcp_content(data: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Wrap data as MCP content blocks."""
-    return [{"type": "text", "text": json.dumps(data)}]
+def _save_input(root: Path, *, checked: bool = True, period: str = "FY2026-Q4") -> Path:
+    folder = root / "inputs" / "AAPL" / period
+    folder.mkdir(parents=True)
+    (folder / "release.md").write_text("# Apple reports\nTotal net sales 100,000\n")
+    (folder / "source.yaml").write_text("url: https://www.sec.gov/example.htm\n")
+    lines = "\n".join(f"  {k}: {v}" for k, v in FIGURES.items())
+    (folder / "expected.yaml").write_text(f"checked: {str(checked).lower()}\nfigures:\n{lines}\n")
+    return folder
 
 
-def test_build_urls_known_ticker() -> None:
-    """Verify URL construction for a known ticker slug."""
-    urls = _build_urls("AAPL")
-    assert len(urls) == EXPECTED_URL_COUNT
-    assert "apple" in urls[0]
-    assert "apple" in urls[1]
+def _llm(content: str | Exception) -> Any:  # noqa: ANN401
+    if isinstance(content, Exception):
+        return AsyncMock(ainvoke=AsyncMock(side_effect=content))
+    response = AsyncMock()
+    response.content = content
+    return AsyncMock(ainvoke=AsyncMock(return_value=response))
 
 
-def test_build_urls_unknown_ticker() -> None:
-    """Verify URL construction falls back to lowercase ticker."""
-    urls = _build_urls("XYZ")
-    assert "xyz" in urls[0]
+@pytest.fixture
+def in_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Run the test from a folder that holds one saved AAPL input."""
+    _save_input(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
 
 
-async def test_research_node_extracts_data() -> None:
-    """Verify research_node calls ref_fetch via MCP and extracts financial data."""
-    pages = [
-        {
-            "status": "ok",
-            "url": "https://example.com",
-            "sections": [
-                {"heading": "Revenue", "text": "Revenue was $100B in Q1 2026."},
-                {"heading": "Margins", "text": "Gross margin was 45%."},
-            ],
-        },
-    ]
+@pytest.mark.usefixtures("in_repo")
+async def test_research_node_extracts_and_checks() -> None:
+    """Figures that match expected.yaml pass, with the input recorded beside them."""
+    extracted = {"period": "Q4 FY2026", **FIGURES, "eps": 2.1}
+    llm = _llm(json.dumps(extracted))
+    with patch("sentinel.agents.research.get_llm", return_value=llm):
+        result = await research_node({"ticker": "AAPL"})
 
-    extracted = {
-        "company": "Apple Inc.",
-        "ticker": "AAPL",
-        "period": "Q1 2026",
-        "revenue": 100000,
-        "gross_margin": 0.45,
+    raw = result["raw_data"]
+    assert "error" not in raw
+    assert raw["revenue"] == REVENUE
+    assert raw["ticker"] == "AAPL"
+    assert raw["input"] == {
+        "path": "inputs/AAPL/FY2026-Q4",
+        "period": "FY2026-Q4",
+        "source_url": "https://www.sec.gov/example.htm",
+        "expected_checked_by_person": True,
+        "expected_mismatches": [],
     }
+    prompt = llm.ainvoke.call_args[0][0]
+    assert "Total net sales 100,000" in prompt
+    assert "<<<DOCUMENT" in prompt
 
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = json.dumps(extracted)
 
-    with (
-        patch(
-            "sentinel.agents.research.get_ref_tools",
-            _mock_ref_tools(_mcp_content(pages)),
-        ),
-        patch(
-            "sentinel.agents.research.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-    ):
+@pytest.mark.usefixtures("in_repo")
+async def test_research_node_fails_when_figures_differ() -> None:
+    """A figure the LLM misread stops the run with the figure named."""
+    extracted = {**FIGURES, "revenue": 99_000}
+    with patch("sentinel.agents.research.get_llm", return_value=_llm(json.dumps(extracted))):
         result = await research_node({"ticker": "AAPL"})
 
-    assert "raw_data" in result
-    assert result["raw_data"]["ticker"] == "AAPL"
-    assert result["raw_data"]["revenue"] == EXPECTED_REVENUE
+    raw = result["raw_data"]
+    assert raw["error"].startswith("Extracted figures differ from expected.yaml")
+    assert raw["input"]["expected_mismatches"] == ["revenue: expected 100000, extracted 99000"]
 
 
-async def test_research_node_handles_no_content() -> None:
-    """Verify research_node returns error when ref_fetch fails for all URLs."""
-    pages = [
-        {"status": "error", "url": "https://fail.example", "error": "timeout"},
-        {"status": "error", "url": "https://fail2.example", "error": "timeout"},
-    ]
+async def test_research_node_reads_the_period_asked_for(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """state['period'] picks an older input over the newest one."""
+    _save_input(tmp_path, period="FY2026-Q3")
+    _save_input(tmp_path, period="FY2026-Q4")
+    monkeypatch.chdir(tmp_path)
+    with patch("sentinel.agents.research.get_llm", return_value=_llm(json.dumps(FIGURES))):
+        result = await research_node({"ticker": "AAPL", "period": "FY2026-Q3"})
 
-    with patch(
-        "sentinel.agents.research.get_ref_tools",
-        _mock_ref_tools(_mcp_content(pages)),
-    ):
+    assert result["raw_data"]["input"]["period"] == "FY2026-Q3"
+
+
+async def test_research_node_records_an_unchecked_expected_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An expected.yaml nobody has checked still compares, and says it was not checked."""
+    _save_input(tmp_path, checked=False)
+    monkeypatch.chdir(tmp_path)
+    with patch("sentinel.agents.research.get_llm", return_value=_llm(json.dumps(FIGURES))):
         result = await research_node({"ticker": "AAPL"})
 
-    assert "error" in result["raw_data"]
+    assert result["raw_data"]["input"]["expected_checked_by_person"] is False
 
 
-async def test_research_node_handles_non_json_response() -> None:
-    """Verify research_node extracts JSON from non-clean Claude response."""
-    pages = [
-        {
-            "status": "ok",
-            "url": "https://example.com",
-            "sections": [{"heading": "Data", "text": "Some earnings data."}],
-        },
-    ]
+async def test_research_node_without_saved_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No input folder for the ticker is an error, before any LLM call."""
+    monkeypatch.chdir(tmp_path)
+    llm = _llm("{}")
+    with patch("sentinel.agents.research.get_llm", return_value=llm):
+        result = await research_node({"ticker": "MSFT"})
 
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = 'Here is the data: {"ticker": "AAPL", "revenue": 50000}'
-
-    with (
-        patch(
-            "sentinel.agents.research.get_ref_tools",
-            _mock_ref_tools(_mcp_content(pages)),
-        ),
-        patch(
-            "sentinel.agents.research.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-    ):
-        result = await research_node({"ticker": "AAPL"})
-
-    assert result["raw_data"]["revenue"] == EXPECTED_REVENUE_PARTIAL
+    assert "No saved input for MSFT" in result["raw_data"]["error"]
+    llm.ainvoke.assert_not_called()
 
 
-async def test_research_node_includes_headingless_sections() -> None:
-    """Verify sections without headings are included by body text."""
-    pages = [
-        {
-            "status": "ok",
-            "url": "https://example.com",
-            "sections": [
-                {"heading": "", "text": "Body-only section content."},
-            ],
-        },
-    ]
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = json.dumps({"ticker": "AAPL", "revenue": 1})
-
-    with (
-        patch(
-            "sentinel.agents.research.get_ref_tools",
-            _mock_ref_tools(_mcp_content(pages)),
-        ),
-        patch(
-            "sentinel.agents.research.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-    ):
-        result = await research_node({"ticker": "AAPL"})
-
-    assert result["raw_data"]["ticker"] == "AAPL"
-
-
-async def test_research_node_handles_unparseable_response() -> None:
-    """Verify research_node returns error when Claude output has no JSON."""
-    pages = [
-        {
-            "status": "ok",
-            "url": "https://example.com",
-            "sections": [{"heading": "Data", "text": "Some content."}],
-        },
-    ]
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = "I cannot extract any data from this page."
-
-    with (
-        patch(
-            "sentinel.agents.research.get_ref_tools",
-            _mock_ref_tools(_mcp_content(pages)),
-        ),
-        patch(
-            "sentinel.agents.research.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-    ):
-        result = await research_node({"ticker": "AAPL"})
-
-    assert "error" in result["raw_data"]
-
-
-async def test_research_node_handles_mcp_parse_failure() -> None:
-    """Verify research_node returns error when MCP response is not parseable JSON."""
-    bad_content = [{"type": "text", "text": "not valid json"}]
-
-    with patch(
-        "sentinel.agents.research.get_ref_tools",
-        _mock_ref_tools(bad_content),
-    ):
-        result = await research_node({"ticker": "AAPL"})
-
-    assert "error" in result["raw_data"]
-
-
-async def test_research_node_single_page_response() -> None:
-    """Verify research_node handles single dict (not array) from ref_fetch."""
-    single_page = {
-        "status": "ok",
-        "url": "https://example.com",
-        "sections": [{"heading": "Revenue", "text": "Revenue was $100B."}],
-    }
-
-    mock_llm_response = AsyncMock()
-    mock_llm_response.content = json.dumps({"ticker": "AAPL", "revenue": 100000})
-
-    with (
-        patch(
-            "sentinel.agents.research.get_ref_tools",
-            _mock_ref_tools(_mcp_content(single_page)),
-        ),
-        patch(
-            "sentinel.agents.research.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(return_value=mock_llm_response)),
-        ),
-    ):
-        result = await research_node({"ticker": "AAPL"})
-
-    assert result["raw_data"]["revenue"] == EXPECTED_REVENUE
-
-
-async def test_research_node_handles_ref_fetch_exception() -> None:
-    """Verify research_node returns error when ref_fetch raises an exception."""
-    with patch(
-        "sentinel.agents.research.get_ref_tools",
-        _mock_ref_tools(side_effect=RuntimeError("boom")),
-    ):
-        result = await research_node({"ticker": "AAPL"})
-
-    assert "error" in result["raw_data"]
-    assert "ref_fetch failed" in result["raw_data"]["error"]
-    assert result["raw_data"]["ticker"] == "AAPL"
-
-
+@pytest.mark.usefixtures("in_repo")
 async def test_research_node_handles_llm_exception() -> None:
-    """Verify research_node returns error when LLM ainvoke raises an exception."""
-    pages = [
-        {
-            "status": "ok",
-            "url": "https://example.com",
-            "sections": [{"heading": "Data", "text": "Some data."}],
-        },
-    ]
+    """An LLM failure is an error for the ticker, not a crash."""
+    with patch("sentinel.agents.research.get_llm", return_value=_llm(RuntimeError("boom"))):
+        result = await research_node({"ticker": "AAPL"})
 
-    with (
-        patch(
-            "sentinel.agents.research.get_ref_tools",
-            _mock_ref_tools(_mcp_content(pages)),
-        ),
-        patch(
-            "sentinel.agents.research.get_llm",
-            return_value=AsyncMock(ainvoke=AsyncMock(side_effect=RuntimeError("boom"))),
-        ),
-    ):
+    assert result["raw_data"]["error"] == "LLM extraction failed for AAPL"
+
+
+@pytest.mark.usefixtures("in_repo")
+async def test_research_node_handles_unparseable_response() -> None:
+    """An answer with no JSON is an error, and keeps the input it came from."""
+    llm = _llm("I cannot extract any data from this document.")
+    with patch("sentinel.agents.research.get_llm", return_value=llm):
+        result = await research_node({"ticker": "AAPL"})
+
+    raw = result["raw_data"]
+    assert raw["error"] == "Failed to parse extraction response"
+    assert raw["input"]["period"] == "FY2026-Q4"
+
+
+@pytest.mark.usefixtures("in_repo")
+async def test_research_node_accepts_non_string_content() -> None:
+    """A provider that returns content blocks instead of a string is read as text."""
+    response = AsyncMock()
+    response.content = [{"type": "text", "text": "no json"}]
+    llm = AsyncMock(ainvoke=AsyncMock(return_value=response))
+    with patch("sentinel.agents.research.get_llm", return_value=llm):
         result = await research_node({"ticker": "AAPL"})
 
     assert "error" in result["raw_data"]
-    assert "LLM extraction failed" in result["raw_data"]["error"]
-    assert result["raw_data"]["ticker"] == "AAPL"
+
+
+def test_parse_llm_response_finds_json_in_text() -> None:
+    """JSON wrapped in prose is still read."""
+    assert _parse_llm_response('Here: {"revenue": 5} done')["revenue"] == 5  # noqa: PLR2004
 
 
 def test_parse_llm_response_handles_broken_json_inside_braces() -> None:

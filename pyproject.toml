@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "sentinel"
 version = "0.8.1"
-description = "Multi-agent earnings analysis — LangGraph agents with Forge + Qdrant RAG"
+description = "A demonstration of Forge in an AI pipeline: LangGraph agents, Forge as the only calculator"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,7 +15,6 @@ dependencies = [
     "langchain-core>=0.3",
     "langsmith>=0.3",
     "langgraph-checkpoint-sqlite>=2.0",
-    "qdrant-client>=1.10",
     "mcp>=1.26",
     "python-dotenv>=1.0",
 ]
@@ -39,7 +38,7 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
-    "integration: requires external binaries (forge, ref)",
+    "integration: requires the forge binary on PATH",
 ]
 
 [tool.ruff]

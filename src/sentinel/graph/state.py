@@ -8,7 +8,7 @@ from typing_extensions import TypedDict
 
 
 class SentinelState(TypedDict, total=False):
-    """Shared state for the Sentinel earnings-analysis pipeline.
+    """Shared state for the Sentinel pipeline (Forge's AI-pipeline demo, ADR-012).
 
     Each agent node reads from and writes to this state.
     Fields use ``total=False`` so nodes can return partial updates.
@@ -16,6 +16,9 @@ class SentinelState(TypedDict, total=False):
 
     ticker: str
     """Company ticker symbol (e.g. ``"AAPL"``)."""
+
+    period: str
+    """Saved input period to read (``inputs/<TICKER>/<period>/``); empty means the newest."""
 
     raw_data: dict[str, Any]
     """Structured financial data extracted by the Research agent."""
@@ -39,11 +42,10 @@ class SentinelState(TypedDict, total=False):
     """Bull / Base / Bear scenario projection results."""
 
     historical_context: list[dict[str, Any]]
-    """Historical earnings records retrieved from Qdrant for trend analysis.
+    """Earlier periods of this ticker, read from earlier runs in ``runs/`` (ADR-012).
 
-    Each element is a payload dict from a past quarter's earnings record
-    (ticker, period, revenue, margins, etc.).  Empty list when no history
-    is available (first run or Qdrant unavailable).
+    Each element holds a past period's figures (period, revenue, operating
+    income, etc.) and the run folder it came from.  Empty list on the first run.
     """
 
     analyst_feedback: str

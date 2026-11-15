@@ -1,1 +1,1 @@
-"""Sentinel tools — Forge MCP and Ref MCP clients."""
+"""Sentinel tools — the Forge MCP client and the Forge model sections built in code."""

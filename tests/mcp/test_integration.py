@@ -188,8 +188,6 @@ async def test_sentinel_analyze_resume_full_flow_mocked() -> None:
         ),
         patch("sentinel.mcp.server.compile_graph", mock_compile),
         patch("sentinel.mcp.server.write_run_output", mock_write),
-        patch("sentinel.mcp.server.create_store"),
-        patch("sentinel.mcp.server.ingest"),
     ):
         # Step 1: analyze
         analyze_result = await sentinel_analyze(ticker="AAPL")

@@ -2,7 +2,9 @@
 
 The sections are mechanical (fixed percentage ranges around the reported
 figures), so they are written in code and checked by tests rather than asked
-of a language model.  The shapes follow Forge 10.0.0-beta.11.
+of a language model.  The shapes follow Forge's model format 5.1.0 (an input is a
+plain number, a formula is ``{formula: "=..."}``); inputs written the 5.0.0 way
+(``{value: 1, formula: null}``) are read too.
 """
 
 from __future__ import annotations
@@ -47,10 +49,13 @@ def numeric_inputs(model: dict[str, Any]) -> dict[str, float]:
     if not isinstance(section, dict):
         return found
     for name, field in section.items():
-        if not isinstance(field, dict):
-            continue
-        value = field.get("value")
-        if field.get("formula") is None and _is_number(value) and value != 0:
+        if isinstance(field, dict):
+            if field.get("formula") is not None:
+                continue
+            value = field.get("value")
+        else:
+            value = field
+        if _is_number(value) and value != 0:
             found[str(name)] = float(value)
     return found
 
@@ -102,10 +107,12 @@ def monte_carlo_variant(model_yaml: str) -> str:
     model = _load(model_yaml)
     inputs = _require(model)
     for name, value in inputs.items():
-        model["inputs"][name] = {
-            "value": None,
-            "formula": f"=MC.Normal({value}, {round(abs(value) * SPREAD, 6)})",
-        }
+        formula = f"=MC.Normal({value}, {round(abs(value) * SPREAD, 6)})"
+        # 5.0.0 needs value: beside every formula; 5.1.0 writes the formula alone.
+        old_style = isinstance(model["inputs"][name], dict)
+        model["inputs"][name] = (
+            {"value": None, "formula": formula} if old_style else {"formula": formula}
+        )
     model["monte_carlo"] = {
         "iterations": MC_ITERATIONS,
         "sampling": "latin_hypercube",

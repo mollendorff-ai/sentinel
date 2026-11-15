@@ -23,58 +23,37 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 
 GENERATION_PROMPT = """\
-You are a financial modeler.  Given the earnings data below, generate a
-Forge v5.0.0 YAML model that calculates key financial metrics.
+You are a financial modeler.  Given the earnings data below, write a Forge model
+(model format 5.1.0) that calculates the key financial metrics.  Forge does the
+arithmetic: write formulas, never results.
 
 EARNINGS DATA:
 {earnings_json}
 
-Generate a YAML model with this structure:
+Write the model with this structure:
 
 ```yaml
-_forge_version: "5.0.0"
+_forge_version: "5.1.0"
 
 inputs:
-  revenue:
-    value: <from data>
-    formula: null
-  cost_of_revenue:
-    value: <from data>
-    formula: null
-  operating_expenses:
-    value: <from data>
-    formula: null
-  net_income:
-    value: <from data or null>
-    formula: null
-  shares_outstanding:
-    value: <from data or null>
-    formula: null
+  revenue: <from data>
+  cost_of_revenue: <from data>
+  operating_expenses: <from data>
+  net_income: <from data>
 
 outputs:
-  gross_profit:
-    value: null
-    formula: "=inputs.revenue - inputs.cost_of_revenue"
-  operating_income:
-    value: null
-    formula: "=outputs.gross_profit - inputs.operating_expenses"
-  gross_margin:
-    value: null
-    formula: "=outputs.gross_profit / inputs.revenue"
-  operating_margin:
-    value: null
-    formula: "=outputs.operating_income / inputs.revenue"
-  net_margin:
-    value: null
-    formula: "=inputs.net_income / inputs.revenue"
+  gross_profit: {{formula: "=inputs.revenue - inputs.cost_of_revenue"}}
+  operating_income: {{formula: "=outputs.gross_profit - inputs.operating_expenses"}}
+  gross_margin: {{formula: "=outputs.gross_profit / inputs.revenue"}}
+  operating_margin: {{formula: "=outputs.operating_income / inputs.revenue"}}
+  net_margin: {{formula: "=inputs.net_income / inputs.revenue"}}
 ```
 
 Rules:
-- Use `_forge_version: "5.0.0"`.
-- Every field MUST have both `value` and `formula` keys.
-- Input fields: `formula: null`, `value: <number>`.
-- Output fields: `value: null`, `formula: "=<expression>"`.
-- Formulas reference other fields with `group.field` syntax.
+- Use `_forge_version: "5.1.0"`.
+- An input is a plain number copied from the data: `revenue: 94800`.
+- An output is `{{formula: "=<expression>"}}`; never write its value.
+- Formulas name other fields as `group.field`.
 - Only use data provided -- do NOT invent numbers.
 - Use raw numbers (not formatted): 94800 not "$94.8B".
 - If a value is null/missing, omit that input and any outputs depending on it.
