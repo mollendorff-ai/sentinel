@@ -12,7 +12,7 @@ Only the latest release gets security fixes.
 
 Please do not open a public issue for a security problem.
 
-Email **security@mollendorff.ai** with:
+Email **<security@mollendorff.ai>** with:
 
 - what you found and what it lets someone do,
 - steps that reproduce it (the command, the ticker or the MCP call),

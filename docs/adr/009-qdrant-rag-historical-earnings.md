@@ -1,7 +1,10 @@
 # ADR-009: Qdrant RAG for Historical Earnings Trend Analysis
 
-**Status:** Accepted, amended 2026-11-05 (see below)
+**Status:** Superseded by [ADR-012](012-sentinel-as-forge-demo.md) on 2026-11-15
 **Date:** 2026-02-25
+
+> **2026-11-15:** superseded by ADR-012. History will come from earlier runs' files in git, and
+> Qdrant is to be removed. Until that change is merged, the code still works as described here.
 
 ## Amendment (0.8.1)
 

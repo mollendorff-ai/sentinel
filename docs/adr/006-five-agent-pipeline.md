@@ -4,6 +4,7 @@
 **Date:** 2026-02-22
 **Extended by:** [ADR-009](009-qdrant-rag-historical-earnings.md) — v0.6.0 adds a Retriever node between Research and Modeler; pipeline is now 6 nodes
 **Extended by:** [ADR-010](010-hitl-interrupt-before-synthesizer.md) — v0.7.0 adds HITL approval gate via `interrupt_before=["synthesizer"]` and real-time streaming via `astream`
+**Amended by:** [ADR-012](012-sentinel-as-forge-demo.md) — 2026-11-15: Research reads a saved input instead of live pages, and the Retriever reads earlier runs from files instead of Qdrant
 
 ## Context
 

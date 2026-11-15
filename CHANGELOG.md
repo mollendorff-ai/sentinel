@@ -3,6 +3,16 @@
 All notable changes to Sentinel are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+
+- **Sentinel's goal is now to be Forge's AI-pipeline demonstration** ([ADR-012](docs/adr/012-sentinel-as-forge-demo.md)), the fourth workflow of Forge's `docs/WORKFLOWS.md` and Forge roadmap item T2-PIPELINE-DEMO. It is no longer an earnings product. A demo run will read a saved SEC earnings release checked against figures a person typed (`expected.yaml`), use Forge as its only calculator, run unattended in GitHub Actions and open a pull request with its model and results. No code changes yet.
+- ADR-009 (Qdrant history) superseded; ADR-005 (Ref) and ADR-006 (pipeline) amended, each with a dated note at the top.
+- README rewritten around the demo, with what 0.8.1 does today kept separate from what 0.9.0 will do.
+- `.asimov/project.yaml`: the description no longer claims "investment-grade briefs with zero hallucinated numbers".
+- `.asimov/roadmap.yaml`: the 0.9.0 security sprint is replaced by the demo milestone, with an acceptance criterion; the security items that still apply move to the backlog.
+
 ## [0.8.1] - 2026-11-05
 
 Makes the pipeline run end to end against Forge 10.0.0-beta.11. Before this, the CLI and the MCP server crashed on the first run, and the risk and scenario steps always failed.
@@ -58,7 +68,7 @@ Human-in-the-loop approval gate + real-time streaming.
 - **HITL approval gate** (`--hitl` flag): `interrupt_before=["synthesizer"]` pauses the pipeline before the Synthesizer; analyst reviews computed financials, risk ranges, and scenario outcomes before the brief is generated
 - **Approval module** (`sentinel.approval`): `show_draft_summary()` prints a condensed analysis (revenue, margins, EPS, risk P50, scenario one-liner) to the terminal; `prompt_approval()` reads analyst decision — empty/`a`/`A` approves, anything else rejects with feedback text
 - **Rejection loop**: analyst feedback injected into `SentinelState.analyst_feedback`; `graph.aupdate_state()` writes it before resuming; Synthesizer prompt includes an "ANALYST FEEDBACK" section when set
-- **Real-time streaming**: CLI migrated from `ainvoke` to `astream(stream_mode="updates")`; each completed agent node prints `  [Agent Name]` to the terminal as it finishes
+- **Real-time streaming**: CLI migrated from `ainvoke` to `astream(stream_mode="updates")`; each completed agent node prints `[Agent Name]`, indented, to the terminal as it finishes
 - **`_AGENT_LABELS`** map in CLI: human-readable labels for all 6 node names
 - **ADR-010:** HITL design — `interrupt_before` + SQLite checkpointer as MCP-compatible pause/resume (accepted); documents Option A two-tool MCP bridge for future implementation
 - `analyst_feedback: str` field added to `SentinelState`

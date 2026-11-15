@@ -3,23 +3,30 @@ identity:
   type: python
 
 description: >
-  Multi-agent earnings analysis. LangGraph agents fetch live data via ref,
-  build financial models via forge, run simulations, and produce
-  investment-grade briefs with zero hallucinated numbers.
+  A demonstration of Forge in an AI pipeline (ADR-012; Forge docs/WORKFLOWS.md,
+  roadmap item T2-PIPELINE-DEMO). LangGraph agents read one quarter's earnings
+  release saved in the repository, an LLM extracts the figures and writes a
+  Forge model, Forge validates and calculates it, and the run's model, results
+  and brief are committed for a person to review as a pull request. Not an
+  earnings product and not financial advice.
 
 stack:
   - python
   - langgraph
   - langchain
-  - langsmith
-  - forge
-  - ref
-  - qdrant
+  - langsmith (optional tracing, off by default)
+  - forge (the only calculator, a pinned release)
+  - sqlite (LangGraph checkpoints)
+  - qdrant (being removed, ADR-012)
+  - ref (not used by a demo run, ADR-012)
 
 conventions:
+  - "Every change serves the demonstration (ADR-012); a feature that does not is removed, not kept"
   - "LangGraph for agent orchestration, LangChain for components only"
-  - "Forge via MCP (langchain-mcp-adapters, stdio transport) for financial calculations — no in-agent math"
-  - "Ref via MCP (langchain-mcp-adapters, stdio transport) for all web retrieval (never WebSearch/WebFetch)"
-  - "Qdrant via qdrant-client[fastembed] for historical earnings RAG — local on-disk, no API key"
-  - "LangSmith tracing enabled from day one"
-  - "Sibling repos for reference: ../forge/ (YAML schema, MCP tool defs, examples), ../ref/ (CLI usage)"
+  - "Forge via MCP (langchain-mcp-adapters, stdio transport) for every calculation; no arithmetic in agent code or in the LLM. Forge is a pinned release binary verified against its checksums.txt"
+  - "A demo run reads a saved input from inputs/<TICKER>/<period>/ and never fetches the web; extracted figures must match the input's expected.yaml, typed by a person"
+  - "A run's record is git: input, model, Forge results and brief committed together, reviewed as a pull request"
+  - "History comes from earlier runs' files in the repository, not from a vector store"
+  - "Unit tests at 100% coverage; tests that need Forge run against the real binary in CI"
+  - "Docs describe what the code does today; a superseded ADR gets a dated note at the top, not a rewrite"
+  - "Sibling repos for reference: ../forge/ (YAML schema, MCP tool defs, examples, docs/WORKFLOWS.md)"
