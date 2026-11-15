@@ -2,3 +2,5 @@ globs:
   - "**/*.md"
   - "!.venv/**"
   - "!node_modules/**"
+  - "!inputs/**"   # saved filings: data, kept as converted
+  - "!runs/**"     # run output: data, written by Sentinel

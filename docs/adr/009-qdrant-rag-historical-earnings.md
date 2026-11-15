@@ -3,8 +3,8 @@
 **Status:** Superseded by [ADR-012](012-sentinel-as-forge-demo.md) on 2026-11-15
 **Date:** 2026-02-25
 
-> **2026-11-15:** superseded by ADR-012. History will come from earlier runs' files in git, and
-> Qdrant is to be removed. Until that change is merged, the code still works as described here.
+> **2026-11-15:** superseded by ADR-012. Qdrant was removed in 0.9.0; history comes from earlier
+> runs' files in `runs/`. This ADR describes the 0.6.0 to 0.8.1 design.
 
 ## Amendment (0.8.1)
 

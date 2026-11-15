@@ -41,7 +41,7 @@ these fields:
   "operating_income": <number or null>,
   "net_income": <number or null>,
   "eps": <diluted earnings per share, number or null>,
-  "shares_outstanding": <diluted shares used in computing EPS, in millions, or null>
+  "shares_outstanding": <diluted shares used in computing EPS, as printed, or null>
 }}
 
 Rules:

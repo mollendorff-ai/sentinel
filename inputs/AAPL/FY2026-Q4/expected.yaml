@@ -1,0 +1,14 @@
+# The figures a run's extraction must match (ADR-012), from the condensed
+# consolidated statements of operations, three months ended September 26, 2026,
+# in millions of US dollars.
+#
+# Drafted by Claude from release.md on 2026-11-15. A person checks each figure
+# against the filing at the url in source.yaml, then sets checked: true. Until
+# then the demo workflow refuses to run.
+checked: false
+tolerance: 0.5
+figures:
+  revenue: 114477            # Total net sales
+  cost_of_revenue: 59657     # Total cost of sales
+  operating_expenses: 19189  # Total operating expenses
+  net_income: 30711          # Net income

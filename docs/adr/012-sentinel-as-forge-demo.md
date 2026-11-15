@@ -79,3 +79,13 @@ investment advice. Each part of it is kept only if it serves the demonstration.
   user would.
 - **Run on the maintainer's computer.** Not possible from an iPhone; Actions also makes every run
   visible.
+
+## Addendum (2026-11-15, 0.9.0): how the first input was saved
+
+SEC EDGAR refuses automated requests that do not declare who is asking: its fair-access policy
+asks for a user agent with a name and a contact email. Ref 1.8.4 was refused ("Undeclared
+Automated Tool") because it has no option to set one. The first input was downloaded once with
+`curl` and the user agent `Mollendorff AI Sentinel security@mollendorff.ai`, the contact already
+published in SECURITY.md, approved by the maintainer. The original HTML is kept beside the
+Markdown made from it (`scripts/html_to_markdown.py`), with both checksums in `source.yaml`, so
+anyone can compare it with the SEC's copy. A user-agent option is a finding to report to Ref.

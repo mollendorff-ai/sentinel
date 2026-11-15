@@ -29,11 +29,11 @@ lint: ## Run ruff format check + lint (ALL rules)
 	$(VENV)/bin/ruff check .
 
 .PHONY: test
-test: ## Run unit tests with coverage (100% required; no Forge, Ref or API key needed)
+test: ## Run unit tests with coverage (100% required; no Forge or API key needed)
 	$(PYTHON) -m pytest -m "not integration" --cov=src/sentinel --cov-fail-under=100 -q
 
 .PHONY: test-integration
-test-integration: ## Run integration tests (needs forge and ref on PATH)
+test-integration: ## Run integration tests (needs forge on PATH: scripts/install-forge.sh; no API key)
 	$(PYTHON) -m pytest -m integration --no-cov -q
 
 .PHONY: check
@@ -42,7 +42,7 @@ check: lint test ## Run all quality gates (lint + test)
 # ── Demo ──────────────────────────────────────────────────────────
 
 .PHONY: demo
-demo: ## Run full 6-agent analysis (TICKER="AAPL" or "AAPL MSFT")
+demo: ## Run the pipeline on the saved input (TICKER="AAPL"; needs forge and an API key)
 	$(PYTHON) -m sentinel $(TICKER)
 
 .PHONY: demo-quick
